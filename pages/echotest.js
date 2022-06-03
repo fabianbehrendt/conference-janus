@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 import Janus from '../janus-es.js'
 
-export default function EchoTest() {
+const EchoTest = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
   const [localTracks, setLocalTracks] = useState([]);
   const [localStream, setLocalStream] = useState(null);
@@ -130,3 +130,5 @@ export default function EchoTest() {
     </div>
   )
 }
+
+export default EchoTest;
