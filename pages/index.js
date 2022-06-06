@@ -5,9 +5,10 @@ import Link from "next/link";
 export default function Home() {
   return (
     <Layout>
-      <ul>
-        <li><Link href="/echotest">Echo Test</Link></li>
-      </ul>
+      <div className={styles.navLinks}>
+        <Link href="/echotest">Echo Test</Link>
+        <Link href="/videocall">Video Call</Link>
+      </div>
     </Layout>
   )
 }
