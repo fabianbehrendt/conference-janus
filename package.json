@@ -1,5 +1,5 @@
 {
-  "name": "conference-janus",
+  "name": "npm-test-janus-no-typescript",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,13 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "exports-loader": "^4.0.0",
+    "janus-gateway": "git://github.com/meetecho/janus-gateway.git",
     "next": "12.1.6",
     "react": "18.1.0",
-    "react-dom": "18.1.0",
-    "webrtc-adapter": "^8.1.1"
+    "react-dom": "18.1.0"
   },
   "devDependencies": {
-    "eslint": "8.16.0",
+    "eslint": "8.17.0",
     "eslint-config-next": "12.1.6"
   }
 }

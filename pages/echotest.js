@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import Janus from '../janus-es.js'
+import { Janus } from 'janus-gateway';
 
 const EchoTest = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
@@ -23,7 +23,7 @@ const EchoTest = () => {
 
   useEffect(() => {
     Janus.init({
-      debug: false,
+      debug: true,
       callback: () => {
         setIsJanusInitialized(true);
       }
