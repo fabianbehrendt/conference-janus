@@ -2,7 +2,7 @@ import styles from "../styles/Home.module.css";
 import Layout from "../components/Layout";
 import Link from "next/link";
 
-export default function Home() {
+const Home = () => {
   return (
     <Layout>
       <div className={styles.navLinks}>
@@ -12,3 +12,5 @@ export default function Home() {
     </Layout>
   )
 }
+
+export default Home;
