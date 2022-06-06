@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react"
 
 import { Janus } from "janus-gateway"
 
+import Layout from "../components/Layout"
+
 const VideoCall = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
   const [localTracks, setLocalTracks] = useState([]);
@@ -131,116 +133,118 @@ const VideoCall = () => {
   }, [isJanusInitialized])
 
   return (
-    <div>
-      <video
-        autoPlay
-        style={{ border: "1px solid black" }}
-        ref={ref => {
-          if (ref)
-            ref.srcObject = localStream;
-        }}
-      />
-      <video
-        autoPlay
-        style={{ border: "1px solid black" }}
-        ref={ref => {
-          if (ref)
-            ref.srcObject = remoteStream;
-        }}
-      />
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          pluginRef.current.send({
-            message: {
-              request: "register",
-              username: username,
-            }
-          })
-        }}
-      >
-        <input
-          type="text"
-          value={username}
-          onChange={event => setUsername(event.currentTarget.value)}
+    <Layout>
+      <div>
+        <video
+          autoPlay
+          style={{ border: "1px solid black" }}
+          ref={ref => {
+            if (ref)
+              ref.srcObject = localStream;
+          }}
         />
-        <button type="submit">Submit</button>
-      </form>
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          pluginRef.current.createOffer({
-            success: jsep => {
-              pluginRef.current.send({
-                message: {
-                  request: "call",
-                  username: remoteUser,
-                },
-                jsep: jsep
-              })
-            },
-            error: error => {
-              // TODO Handle error
-            },
-            customizeSdp: jsep => {
-              // TODO Modify original sdp if needed
-            }
-          })
-        }}
-      >
-        <input
-          type="text"
-          value={remoteUser}
-          onChange={event => setRemoteUser(event.currentTarget.value)}
+        <video
+          autoPlay
+          style={{ border: "1px solid black" }}
+          ref={ref => {
+            if (ref)
+              ref.srcObject = remoteStream;
+          }}
         />
-        <button type="submit">Call</button>
-      </form>
-      <button
-        type="button"
-        onClick={() => {
-          pluginRef.current.send({
-            message: {
-              request: "list"
-            }
-          })
-        }}
-      >
-        List users
-      </button>
-      {remoteUser && remoteSdp && (
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            pluginRef.current.send({
+              message: {
+                request: "register",
+                username: username,
+              }
+            })
+          }}
+        >
+          <input
+            type="text"
+            value={username}
+            onChange={event => setUsername(event.currentTarget.value)}
+          />
+          <button type="submit">Submit</button>
+        </form>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            pluginRef.current.createOffer({
+              success: jsep => {
+                pluginRef.current.send({
+                  message: {
+                    request: "call",
+                    username: remoteUser,
+                  },
+                  jsep: jsep
+                })
+              },
+              error: error => {
+                // TODO Handle error
+              },
+              customizeSdp: jsep => {
+                // TODO Modify original sdp if needed
+              }
+            })
+          }}
+        >
+          <input
+            type="text"
+            value={remoteUser}
+            onChange={event => setRemoteUser(event.currentTarget.value)}
+          />
+          <button type="submit">Call</button>
+        </form>
         <button
           type="button"
           onClick={() => {
-            console.log("accept")
-            // pluginRef.current.send({
-            //   message: {
-            //     request: "accept"
-            //   },
-            //   jsep: remoteSdp
-            // })
-            pluginRef.current.createAnswer(
-              {
-                // We attach the remote OFFER
-                jsep: remoteSdp,
-                success: ourjsep => {
-                  var body = { "request": "start" };
-                  pluginRef.current.send({
-                    message: {
-                      request: "accept"
-                    },
-                    jsep: ourjsep
-                  });
-                },
-                error: function (error) {
-                  // An error occurred...
-                }
-              });
+            pluginRef.current.send({
+              message: {
+                request: "list"
+              }
+            })
           }}
         >
-          Accept Call from {remoteUser}
+          List users
         </button>
-      )}
-    </div>
+        {remoteUser && remoteSdp && (
+          <button
+            type="button"
+            onClick={() => {
+              console.log("accept")
+              // pluginRef.current.send({
+              //   message: {
+              //     request: "accept"
+              //   },
+              //   jsep: remoteSdp
+              // })
+              pluginRef.current.createAnswer(
+                {
+                  // We attach the remote OFFER
+                  jsep: remoteSdp,
+                  success: ourjsep => {
+                    var body = { "request": "start" };
+                    pluginRef.current.send({
+                      message: {
+                        request: "accept"
+                      },
+                      jsep: ourjsep
+                    });
+                  },
+                  error: function (error) {
+                    // An error occurred...
+                  }
+                });
+            }}
+          >
+            Accept Call from {remoteUser}
+          </button>
+        )}
+      </div>
+    </Layout>
   )
 }
 

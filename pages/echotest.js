@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 
 import { Janus } from 'janus-gateway';
 
+import Layout from '../components/Layout'
+
 const EchoTest = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
   const [localTracks, setLocalTracks] = useState([]);
@@ -110,24 +112,26 @@ const EchoTest = () => {
   }, [isJanusInitialized])
 
   return (
-    <div>
-      <video
-        autoPlay
-        style={{ border: "1px solid black" }}
-        ref={ref => {
-          if (ref)
-            ref.srcObject = localStream;
-        }}
-      />
-      <video
-        autoPlay
-        style={{ border: "1px solid black" }}
-        ref={ref => {
-          if (ref)
-            ref.srcObject = remoteStream;
-        }}
-      />
-    </div>
+    <Layout>
+      <div>
+        <video
+          autoPlay
+          style={{ border: "1px solid black" }}
+          ref={ref => {
+            if (ref)
+              ref.srcObject = localStream;
+          }}
+        />
+        <video
+          autoPlay
+          style={{ border: "1px solid black" }}
+          ref={ref => {
+            if (ref)
+              ref.srcObject = remoteStream;
+          }}
+        />
+      </div>
+    </Layout>
   )
 }
 
