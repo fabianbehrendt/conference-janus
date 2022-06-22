@@ -1,5 +1,5 @@
 {
-  "name": "npm-test-janus-no-typescript",
+  "name": "conference-janus",
   "version": "0.1.0",
   "private": true,
   "scripts": {
