@@ -1,0 +1,150 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
+
+import { Janus } from 'janus-gateway';
+
+import Layout from '../components/Layout';
+
+const VideoRoom = () => {
+  const [isJanusInitialized, setIsJanusInitialized] = useState(false);
+  const [rooms, setRooms] = useState(null);
+  const [users, setUsers] = useState({});
+  const [deleteRoomName, setDeleteRoomName] = useState("");
+  const [createRoomName, setCreateRoomName] = useState("");
+  const [listRoomName, setListRoomName] = useState("");
+
+  const plugin = useRef(null);
+
+  useEffect(() => {
+    Janus.init({
+      debug: true,
+      callback: () => {
+        setIsJanusInitialized(true);
+      },
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isJanusInitialized)
+      return;
+
+    const janus = new Janus({
+      server: "wss://fabianbehrendt.me/server",
+      success: () => {
+        janus.attach({
+          plugin: "janus.plugin.videoroom",
+          success: pluginHandle => {
+            plugin.current = pluginHandle;
+            plugin.current.send({
+              message: {
+                request: "list",
+              },
+              success: msg => {
+                const event = msg.videoroom;
+
+                if (event === "success") {
+                  setRooms(msg.list);
+                  // console.log(msg.list);
+                }
+
+                for (const room of msg.list) {
+                  if (room.num_participants > 0) {
+                    setUsers(prev => {
+                      return {
+                        ...prev,
+                        [room.room]: room.num_participants,
+                      }
+                    })
+                  }
+                }
+              }
+            })
+          },
+          onmessage: (msg, jsep) => {
+            console.log("msg, jsep:", msg, jsep);
+          },
+        })
+      }
+    });
+  }, [isJanusInitialized]);
+
+  const roomList = useMemo(() => {
+    return rooms?.map(room => {
+      const id = room.room;
+
+      return (
+        <div key={id} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <Link key={id} href={`/videoroom/${id}`}>
+            {`${id}  "${room.description}"`}
+          </Link>
+          <p>|</p>
+          <p>Users: {users[id] ? users[id] : 0}</p>
+        </div>
+      )
+    })
+  }, [rooms, users]);
+
+  return (
+    <Layout>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+
+            plugin.current.send({
+              message: {
+                request: "destroy",
+                room: parseInt(deleteRoomName),
+              },
+              success: result => {
+                console.log(result)
+              }
+            })
+          }}
+        >
+          <input type="text" value={deleteRoomName} onChange={event => setDeleteRoomName(event.currentTarget.value)} />
+          <button type="submit">Destroy Room</button>
+        </form>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+
+            plugin.current.send({
+              message: {
+                request: "create",
+                room: parseInt(createRoomName)
+              },
+              success: result => {
+                console.log(result)
+              }
+            })
+          }}
+        >
+          <input type="text" value={createRoomName} onChange={event => setCreateRoomName(event.currentTarget.value)} />
+          <button type="submit">Create Room</button>
+        </form>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+
+            plugin.current.send({
+              message: {
+                request: "listparticipants",
+                room: parseInt(listRoomName)
+              },
+              success: result => {
+                console.log(result)
+              }
+            })
+          }}
+        >
+          <input type="text" value={listRoomName} onChange={event => setListRoomName(event.currentTarget.value)} />
+          <button type="submit">List Participants</button>
+        </form>
+        {roomList}
+      </div>
+    </Layout>
+  )
+}
+
+export default VideoRoom;
