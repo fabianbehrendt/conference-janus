@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 
 import { Janus } from 'janus-gateway';
@@ -15,6 +15,33 @@ const VideoRoom = () => {
 
   const plugin = useRef(null);
 
+  const getRooms = useCallback(() => {
+    plugin.current.send({
+      message: {
+        request: "list",
+      },
+      success: msg => {
+        const event = msg.videoroom;
+
+        if (event === "success") {
+          setRooms(msg.list);
+          // console.log(msg.list);
+        }
+
+        for (const room of msg.list) {
+          if (room.num_participants > 0) {
+            setUsers(prev => {
+              return {
+                ...prev,
+                [room.room]: room.num_participants,
+              }
+            })
+          }
+        }
+      }
+    });
+  }, []);
+
   useEffect(() => {
     Janus.init({
       debug: true,
@@ -29,36 +56,13 @@ const VideoRoom = () => {
       return;
 
     const janus = new Janus({
-      server: "wss://fabianbehrendt.me/server",
+      server: "wss://janus.fabianbehrendt.de",
       success: () => {
         janus.attach({
           plugin: "janus.plugin.videoroom",
           success: pluginHandle => {
             plugin.current = pluginHandle;
-            plugin.current.send({
-              message: {
-                request: "list",
-              },
-              success: msg => {
-                const event = msg.videoroom;
-
-                if (event === "success") {
-                  setRooms(msg.list);
-                  // console.log(msg.list);
-                }
-
-                for (const room of msg.list) {
-                  if (room.num_participants > 0) {
-                    setUsers(prev => {
-                      return {
-                        ...prev,
-                        [room.room]: room.num_participants,
-                      }
-                    })
-                  }
-                }
-              }
-            })
+            getRooms();
           },
           onmessage: (msg, jsep) => {
             console.log("msg, jsep:", msg, jsep);
@@ -66,7 +70,7 @@ const VideoRoom = () => {
         })
       }
     });
-  }, [isJanusInitialized]);
+  }, [getRooms, isJanusInitialized]);
 
   const roomList = useMemo(() => {
     return rooms?.map(room => {
@@ -98,11 +102,13 @@ const VideoRoom = () => {
               },
               success: result => {
                 console.log(result)
+                setDeleteRoomName("");
+                getRooms();
               }
             })
           }}
         >
-          <input type="text" value={deleteRoomName} onChange={event => setDeleteRoomName(event.currentTarget.value)} />
+          <input type="number" min={1} max={Number.MAX_SAFE_INTEGER} value={deleteRoomName} onChange={event => setDeleteRoomName(event.currentTarget.value)} />
           <button type="submit">Destroy Room</button>
         </form>
         <form
@@ -116,11 +122,13 @@ const VideoRoom = () => {
               },
               success: result => {
                 console.log(result)
+                setCreateRoomName("");
+                getRooms();
               }
             })
           }}
         >
-          <input type="text" value={createRoomName} onChange={event => setCreateRoomName(event.currentTarget.value)} />
+          <input type="number" min={1} max={Number.MAX_SAFE_INTEGER} value={createRoomName} onChange={event => setCreateRoomName(event.currentTarget.value)} />
           <button type="submit">Create Room</button>
         </form>
         <form
@@ -138,7 +146,7 @@ const VideoRoom = () => {
             })
           }}
         >
-          <input type="text" value={listRoomName} onChange={event => setListRoomName(event.currentTarget.value)} />
+          <input type="text" min={1} max={Number.MAX_SAFE_INTEGER} value={listRoomName} onChange={event => setListRoomName(event.currentTarget.value)} />
           <button type="submit">List Participants</button>
         </form>
         {roomList}

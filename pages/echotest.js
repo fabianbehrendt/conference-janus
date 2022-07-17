@@ -39,7 +39,7 @@ const EchoTest = () => {
     let plugin = null;
 
     const janus = new Janus({
-      server: "wss://fabianbehrendt.me/server",
+      server: "wss://janus.fabianbehrendt.de",
       success: () => {
         janus.attach({
           plugin: "janus.plugin.echotest",
