@@ -304,6 +304,16 @@ const Room = () => {
         console.log("connected to socket")
       })
 
+      socket.on("disconnect", reason => {
+        if (reason === "io server disconnect") {
+          // TODO Not tested yet!
+          socket.connect();
+        }
+
+        // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
+        socket.emit("leave", id.current);
+      })
+
       socket.on("update-input", msg => {
         console.log(msg)
       })
@@ -311,6 +321,14 @@ const Room = () => {
 
     socketInitializer();
   }, []);
+
+  useEffect(() => {
+    window.onbeforeunload = () => {
+      if (socket?.connected) {
+        socket.emit("leave", id.current);
+      }
+    }
+  }, [])
 
   const initJanus = useCallback((displayName, isUserHost) => {
     Janus.init({
@@ -358,6 +376,10 @@ const Room = () => {
                   if (event === "joined") {
                     id.current = msg.id;
                     privateId.current = msg.private_id;
+
+                    if (socket?.connected) {
+                      socket.emit("join", id.current, isUserHost);
+                    }
 
                     publisherHandle.current.createOffer({
                       media: {
@@ -536,6 +558,10 @@ const Room = () => {
                     } else if (msg.unpublished) {
                       if (msg.unpublished === "ok") {
                         // That's us
+                        if (socket?.connected) {
+                          socket.emit("leave", id.current);
+                        }
+
                         publisherHandle.current.hangup();
                         return;
                       }
