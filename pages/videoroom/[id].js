@@ -2,9 +2,11 @@ import { useRouter } from "next/router";
 import { useEffect, useCallback, useRef, useState, useMemo, useReducer } from "react";
 
 import { Janus } from 'janus-gateway'
+import io from "socket.io-client";
 
 import Layout from "../../components/Layout";
 
+let socket;
 const reducer = (state, action) => {
   switch (action.type) {
     case "add feed stream":
@@ -75,7 +77,7 @@ const reducer = (state, action) => {
         ...state,
         localStreams: {
           ...state.localStreams,
-          [action.track.id]: new MediaStream([action.track]),
+          [action.track.id]: new MediaStream([action.track.clone()]),
         },
       };
     case "remove local stream":
@@ -113,8 +115,8 @@ const reducer = (state, action) => {
           ...state.remoteStreams,
           [feedId]: {
             ...state.remoteStreams[feedId],
-            [remoteTrack.kind]: new MediaStream([remoteTrack]),
-          }
+            [remoteTrack.kind]: new MediaStream([remoteTrack.clone()]),
+          },
         },
       };
     case "remove remote stream":
@@ -134,6 +136,37 @@ const Room = () => {
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
+  const [waitingSDPs, setWaitingSDPs] = useState([]);
+  // const [socket, setSocket] = useState();
+
+  // [
+  //   {
+  //     offer: jsep,
+  //     answer: jsep,
+  //   },
+  //   {
+  //     offer: jsep,
+  //     answer: jsep,
+  //   }
+  // ]
+
+  // Example offer 1
+  //
+  // v=0
+  // o=- 6603908741767771803 2 IN IP4 127.0.0.1           <-- Could be used as an id
+  // s=-
+  // t=0 0
+  // a=group:BUNDLE 0 1                                   <-- Could be used as an id
+  // a=extmap-allow-mixed
+
+  // Example offer 2
+  //
+  // v=0
+  // o=- 6603908741767771803 3 IN IP4 127.0.0.1           <-- Could be used as an id
+  // s=-
+  // t=0 0
+  // a=group:BUNDLE 0 1 2 3                               <-- Could be used as an id
+  // a=extmap-allow-mixed
 
   const [state, dispatch] = useReducer(reducer, {
     feedStreams: {},
@@ -141,7 +174,7 @@ const Room = () => {
     localTracks: [],
     localStreams: {},
     remoteTracks: {},
-    remoteStreams: {}
+    remoteStreams: {},
   });
 
   const id = useRef(null);
@@ -151,6 +184,51 @@ const Room = () => {
   const isSubscriberJoining = useRef(false);
 
   const router = useRouter();
+
+  const handleJsep = useCallback(jsep => {
+    const { type, sdp } = jsep;
+
+    const id = sdp.split("\r")[1].split(" ")[2];
+
+    setWaitingSDPs(prev => {
+      if (type === "offer") {
+        return [
+          ...prev,
+          {
+            id: id,
+            offer: jsep,
+            answer: null,
+          }
+        ];
+      }
+
+      for (const i = 0; i < prev.length; i++) {
+        if (prev[i].id === id && i === 0) {
+          const [firstWaitingSDP, ...restWaitingSDPs] = prev;
+          publisherHandle.current.handleRemoteJsep({ jsep: jsep })
+
+          // ? Handle in useEffect
+          // if (restWaitingSDPs.length > 0 && restWaitingSDPs[0].answer != null) {
+          //   handleJsep(restWaitingSDPs[0].answer)
+          // }
+          return restWaitingSDPs;
+        } else if (prev[i].id === id) {
+          const newWaitingSDPs = [...prev];
+          newWaitingSDPs[i].answer = jsep;
+
+          return newWaitingSDPs;
+        }
+      }
+
+      return prev;
+    })
+  }, []);
+
+  useEffect(() => {
+    if (waitingSDPs.length > 0 && waitingSDPs[0].answer != null) {
+      handleJsep(waitingSDPs[0].answer);
+    }
+  }, [handleJsep, waitingSDPs]);
 
   const parseIntStrict = useCallback(value => {
     if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
@@ -191,7 +269,8 @@ const Room = () => {
         subscriberHandle.current.send({
           message: {
             request: "subscribe",
-            streams: newPublishers.map(publisher => ({ feed: publisher.id })),
+            streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
+              .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
           }
         })
 
@@ -204,7 +283,8 @@ const Room = () => {
             ptype: "subscriber",
             room: roomId,
             private_id: privateId.current,
-            streams: newPublishers.map(publisher => ({ feed: publisher.id })),
+            streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
+              .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
           }
         })
 
@@ -213,13 +293,34 @@ const Room = () => {
     }
   }, [roomId, newPublishers, hasSubscriberJoined]);
 
+  const availableDevices = useRef();
+
+  useEffect(() => {
+    const socketInitializer = async () => {
+      await fetch("/api/socket");
+      socket = io();
+
+      socket.on("connect", () => {
+        console.log("connected to socket")
+      })
+
+      socket.on("update-input", msg => {
+        console.log(msg)
+      })
+    };
+
+    socketInitializer();
+  }, []);
+
   const initJanus = useCallback((displayName, isUserHost) => {
     Janus.init({
       debug: false,
       callback: () => {
         Janus.listDevices(devices => {
-          console.log("available devices:", devices.filter(device => device.kind === "videoinput"));
-          console.log("video id", devices.filter(device => device.kind === "videoinput")[0].deviceId)
+          // console.log("available devices:", devices.filter(device => device.kind === "videoinput"));
+          // console.log("video id", devices.filter(device => device.kind === "videoinput")[0].deviceId)
+
+          availableDevices.current = devices;
 
           const opaqueId = `videoroom-${Janus.randomString(12)}`;
 
@@ -239,7 +340,7 @@ const Room = () => {
                       ptype: "publisher",
                       room: roomId,
                       display: displayName,
-                    }
+                    },
                   })
                 },
                 error: cause => {
@@ -250,7 +351,7 @@ const Room = () => {
                   // console.log("consent | on:", on)
                 },
                 onmessage: (msg, jsep) => {
-                  // console.log("publisher msg, jsep:", msg, jsep)
+                  console.log("publisher msg, jsep:", msg, jsep ? jsep : "no jsep")
 
                   const event = msg.videoroom;
 
@@ -264,9 +365,13 @@ const Room = () => {
                           deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
                           width: 192,
                           height: 144,
-                        }
+                        },
+                        audio: true,
                       },
                       success: jsep => {
+                        // console.log("### JSEP ###", jsep.type, jsep.sdp)
+                        console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+                        handleJsep(jsep);
                         publisherHandle.current.send({
                           message: {
                             request: "publish",
@@ -282,6 +387,62 @@ const Room = () => {
                       }
                     })
 
+                    // publisherHandle.current.createOffer({
+                    //   media: {
+                    //     video: {
+                    //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
+                    //       width: 192,
+                    //       height: 144,
+                    //     },
+                    //     audio: true,
+                    //   },
+                    //   success: jsep => {
+                    //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
+                    //     console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+                    //     handleJsep(jsep);
+                    //     publisherHandle.current.send({
+                    //       message: {
+                    //         request: "publish",
+                    //       },
+                    //       jsep: jsep,
+                    //     })
+                    //   },
+                    //   error: error => {
+                    //     // TODO Handle error
+                    //   },
+                    //   customizeSdp: jsep => {
+                    //     // TODO Modify original sdp if needed
+                    //   }
+                    // })
+
+                    // publisherHandle.current.createOffer({
+                    //   media: {
+                    //     video: {
+                    //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
+                    //       width: 192,
+                    //       height: 144,
+                    //     },
+                    //     audio: true,
+                    //   },
+                    //   success: jsep => {
+                    //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
+                    //     console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+                    //     handleJsep(jsep);
+                    //     publisherHandle.current.send({
+                    //       message: {
+                    //         request: "publish",
+                    //       },
+                    //       jsep: jsep,
+                    //     })
+                    //   },
+                    //   error: error => {
+                    //     // TODO Handle error
+                    //   },
+                    //   customizeSdp: jsep => {
+                    //     // TODO Modify original sdp if needed
+                    //   }
+                    // })
+
                     if (isUserHost) {
                       publisherHandle.current.createOffer({
                         media: {
@@ -289,9 +450,13 @@ const Room = () => {
                             deviceId: devices.filter(device => device.kind === "videoinput")[1].deviceId,
                             width: 192,
                             height: 144,
-                          }
+                          },
+                          audio: true,
                         },
                         success: jsep => {
+                          // console.log("### JSEP ###", jsep.type, jsep.sdp)
+                          console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+                          handleJsep(jsep)
                           publisherHandle.current.send({
                             message: {
                               request: "publish",
@@ -381,7 +546,10 @@ const Room = () => {
                   // TODO message / event received
                   // TODO if jsep not null, WebRTC negotiation
                   if (jsep) {
-                    publisherHandle.current.handleRemoteJsep({ jsep: jsep })
+                    // console.log("### handle remote JSEP ###", jsep.type, jsep.sdp)
+                    console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+                    handleJsep(jsep)
+                    // publisherHandle.current.handleRemoteJsep({ jsep: jsep })
                   }
                 },
                 onlocaltrack: (track, added) => {
@@ -418,7 +586,7 @@ const Room = () => {
                   // TODO error
                 },
                 onmessage: (msg, jsep) => {
-                  // console.log("subscriber msg, jsep:", msg, jsep)
+                  console.log("subscriber msg, jsep:", msg, jsep ? jsep : "no jsep")
 
                   const event = msg.videoroom;
 
@@ -432,6 +600,7 @@ const Room = () => {
                   }
 
                   if (msg.streams) {
+                    // console.log("msg.streams:", msg)
                     let newSubStreams = {};
 
                     for (const stream of msg.streams) {
@@ -468,6 +637,8 @@ const Room = () => {
                   // TODO local track has been added or removed
                 },
                 onremotetrack: (track, mid, added) => {
+                  // TODO on description change, maybe update existing mid instead of creating a new one ???
+
                   console.log("remote track", track, mid, added)
                   // TODO remote track with specific mid has been added or removed
                   if (added) {
@@ -493,7 +664,7 @@ const Room = () => {
         });
       }
     })
-  }, [roomId, unsubscribeFrom]);
+  }, [handleJsep, roomId, unsubscribeFrom]);
 
   const localVideos = useMemo(() => {
     let videos = [];
@@ -503,29 +674,46 @@ const Room = () => {
 
       if (kind === "video") {
         videos = [...videos, (
-          <video
+          <div
             key={stream.id}
-            autoPlay
-            playsInline
-            muted
-            style={{ border: "1px solid black" }}
-            width={192}
-            height={144}
-            ref={ref => {
-              if (ref)
-                ref.srcObject = stream;
-            }}
-          />
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
+          >
+            <video
+              autoPlay
+              playsInline
+              muted
+              style={{ border: "1px solid black" }}
+              width={192}
+              height={144}
+              ref={ref => {
+                if (ref)
+                  ref.srcObject = stream;
+              }}
+            />
+            {isHost && (
+              <select>
+                {Object.values(state.feedStreams).map(feedStream => {
+                  return (
+                    <option key={feedStream.id}>
+                      {feedStream.display}
+                    </option>
+                  )
+                })}
+              </select>
+            )}
+          </div>
         )]
       }
     }
 
     return videos;
-  }, [state.localStreams]);
+  }, [isHost, state.feedStreams, state.localStreams]);
 
   const remoteElements = useMemo(() => {
     let videoElements = [];
     let audioElements = [];
+
+    // console.log("remote streams:", state.remoteStreams)
 
     for (const [feedId, streams] of Object.entries(state.remoteStreams)) {
       for (const [type, stream] of Object.entries(streams)) {
@@ -573,12 +761,124 @@ const Room = () => {
     );
   }, [state.remoteStreams])
 
+  const [currentMid, setCurrentMid] = useState(0);
+
   return (
     <Layout>
       <h1 style={{ textAlign: "center" }}>Room {roomId}</h1>
+      {/* <button
+        onClick={() => {
+          console.log(availableDevices.current.filter(device => device.kind === "videoinput")[1])
+          // TODO ???
+
+          publisherHandle.current.createOffer({
+            media: {
+              video: {
+                deviceId: availableDevices.current.filter(device => device.kind === "videoinput")[1].deviceId,
+                width: 192,
+                height: 144,
+              }
+            },
+            success: jsep => {
+              console.log("### added ###")
+              publisherHandle.current.send({
+                message: {
+                  request: "publish",
+                },
+                jsep: jsep,
+              })
+            },
+            error: error => {
+              // TODO Handle error
+            },
+            customizeSdp: jsep => {
+              // TODO Modify original sdp if needed
+            }
+          })
+        }}
+      >Connect 2nd Stream</button> */}
+      <button
+        onClick={() => {
+          const { [id.current]: bla, ...rest } = state.feedStreams;
+          console.log(Object.keys(rest)[0])
+
+          subscriberHandle.current.send({
+            message: {
+              request: "switch",
+              streams: [
+                {
+                  feed: parseInt(Object.keys(rest)[0]),
+                  mid: ((currentMid * 2 + 2) % 4).toString(), // "2"
+                  sub_mid: "0"
+                },
+                /*
+                  0 -> 2, 3
+                  1 -> 0, 1
+                */
+                {
+                  feed: parseInt(Object.keys(rest)[0]),
+                  mid: ((currentMid * 2 + 3) % 4).toString(), // "3"
+                  sub_mid: "1"
+                }
+              ]
+            }
+          })
+
+          setCurrentMid(prev => (prev + 1) % 2)
+        }}
+      >
+        Switch
+      </button>
+      <button
+        onClick={() => {
+          if (socket?.connected) {
+            socket.emit("input-change")
+          }
+        }}
+      >
+        Test Socket
+      </button>
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+
+          publisherHandle.current.send({
+            message: {
+              request: "configure",
+              // mid: event.target.mid.value.toString(),
+              // streams: [
+              //   {
+              //     mid: event.target.mid.value.toString(),
+              //     keyframe: false,
+              //   },
+              // ],
+              descriptions: [
+                {
+                  mid: event.target.mid.value.toString(),
+                  description: event.target.desc.value.toString(),
+                },
+                // {
+                //   mid: (parseInt(event.target.mid.value) * 2 + 1).toString(),
+                //   description: event.target.desc.value.toString(),
+                // },
+              ],
+            }
+          });
+        }}
+      >
+        <label>
+          Mid:
+          <input id="mid" />
+        </label>
+        <label>
+          Description:
+          <input id="desc" />
+        </label>
+        <button>Submit</button>
+      </form>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center" }}>
         <form
-          onSubmit={event => {
+          onSubmit={async event => {
             event.preventDefault();
 
             const isHostValue = event.currentTarget.host.checked;
@@ -601,12 +901,14 @@ const Room = () => {
           >
             Submit
           </button>
-          <input
-            id="host"
-            type="checkbox"
-            disabled={userName.length > 0}
-          />
-          <label>Host</label>
+          <label>
+            <input
+              id="host"
+              type="checkbox"
+              disabled={userName.length > 0}
+            />
+            Host
+          </label>
         </form>
         {userName && (
           <>
