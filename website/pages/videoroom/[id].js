@@ -297,8 +297,8 @@ const Room = () => {
 
   useEffect(() => {
     const socketInitializer = async () => {
-      await fetch("/api/socket");
-      socket = io();
+      // await fetch("/api/socket");
+      socket = io("http://localhost:3000");
 
       socket.on("connect", () => {
         console.log("connected to socket")
