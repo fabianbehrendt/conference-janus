@@ -389,7 +389,10 @@ const Room = () => {
   useEffect(() => {
     const socketInitializer = async () => {
       // await fetch("/api/socket");
-      socket = io("http://localhost:3000");
+      // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de/socket");
+      socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de", {
+        path: "/socket/socket.io",
+      });
 
       socket.on("connect", () => {
         console.log("connected to socket")
