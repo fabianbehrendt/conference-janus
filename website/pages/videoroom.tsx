@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 
+// @ts-ignore
 import { Janus } from 'janus-gateway';
 
 import Layout from '../components/Layout';

@@ -1,15 +1,44 @@
 import { useRouter } from "next/router";
-import { useEffect, useCallback, useRef, useState, useMemo, useReducer } from "react";
+import React, { useEffect, useCallback, useRef, useState, useMemo, useReducer, Reducer, ReducerWithoutAction } from "react";
 
-import { Janus } from 'janus-gateway'
-import io from "socket.io-client";
+// @ts-ignore
+import { Janus } from 'janus-gateway';
+import { JanusJS } from "../../janus";
+import io, { Socket } from "socket.io-client";
 
 import Layout from "../../components/Layout";
+import { Publisher, PublisherStream, SubscriberStream } from "../../interfaces/janus";
 
-let socket;
-const reducer = (state, action) => {
+let socket: Socket;
+
+interface IReducerState {
+  // feedStreams: { [id: number]: Omit<Publisher, "streams"> & { streams: PublisherStream[] & { id: number, display: string }[] } };
+  feedStreams: { [id: number]: Publisher & { streams: { id: number; display: string; }[] } };
+  subStreams: { [mid: number]: SubscriberStream; };
+  localTracks: MediaStreamTrack[];
+  localStreams: { [id: string]: MediaStream };
+  remoteTracks: { [mid: number]: MediaStreamTrack };
+  remoteStreams: { [id: string]: MediaStream };
+}
+
+interface IReducerAction {
+  type: "add feed stream" | "remove feed stream" | "add sub stream" | "remove sub stream" | "add local track" | "remove local track" | "add local stream" | "remove local stream" | "add remote track" | "remove remote track" | "add remote stream" | "remove remote stream";
+  id?: number;
+  display?: string;
+  streams?: PublisherStream[];
+  mid?: number;
+  stream?: SubscriberStream;
+  track?: MediaStreamTrack;
+  feedId?: number;
+}
+
+const reducer = (state: IReducerState, action: IReducerAction): IReducerState => {
   switch (action.type) {
     case "add feed stream":
+      if (action.id == null || action.display == null || action.streams == null) {
+        throw new Error("id, display or streams is missing");
+      }
+
       const id = action.id;
       const display = action.display;
       const streams = action.streams;
@@ -34,6 +63,10 @@ const reducer = (state, action) => {
         }
       };
     case "remove feed stream":
+      if (action.id == null) {
+        throw new Error("id is missing");
+      }
+
       const { [action.id]: feedStreamToRemove, ...restFeedStreams } = state.feedStreams;
 
       return {
@@ -41,6 +74,10 @@ const reducer = (state, action) => {
         feedStreams: restFeedStreams,
       };
     case "add sub stream":
+      if (action.mid == null || action.stream == null) {
+        throw new Error("mid and stream is missing");
+      }
+
       return {
         ...state,
         subStreams: {
@@ -49,10 +86,15 @@ const reducer = (state, action) => {
         },
       };
     case "remove sub stream":
+      // TODO ?
       return {
         ...state,
       };
     case "add local track":
+      if (action.track == null) {
+        throw new Error("track is missing");
+      }
+
       return {
         ...state,
         localTracks: [
@@ -61,10 +103,14 @@ const reducer = (state, action) => {
         ],
       };
     case "remove local track":
+      if (action.track == null) {
+        throw new Error("track is missing");
+      }
+
       return {
         ...state,
         localTracks: state.localTracks.filter(track => {
-          if (track.id !== action.track.id) {
+          if (track.id !== action.track!.id) {
             return true;
           } else {
             track.stop();
@@ -73,6 +119,10 @@ const reducer = (state, action) => {
         }),
       };
     case "add local stream":
+      if (action.track == null) {
+        throw new Error("track is missing");
+      }
+
       return {
         ...state,
         localStreams: {
@@ -81,6 +131,10 @@ const reducer = (state, action) => {
         },
       };
     case "remove local stream":
+      if (action.track == null) {
+        throw new Error("track is missing");
+      }
+
       const { [action.track.id]: localStreamToRemove, ...restLocalStreams } = state.localStreams;
 
       return {
@@ -88,6 +142,10 @@ const reducer = (state, action) => {
         localStreams: restLocalStreams,
       };
     case "add remote track":
+      if (action.mid == null || action.track == null) {
+        throw new Error("mid and track is missing");
+      }
+
       return {
         ...state,
         remoteTracks: {
@@ -96,6 +154,10 @@ const reducer = (state, action) => {
         }
       };
     case "remove remote track":
+      if (action.mid == null) {
+        throw new Error("mid is missing");
+      }
+
       const { [action.mid]: trackToRemove, ...restRemoteTracks } = state.remoteTracks;
 
       trackToRemove.stop();
@@ -105,7 +167,11 @@ const reducer = (state, action) => {
         remoteTracks: restRemoteTracks,
       };
     case "add remote stream":
-      // TODO only store relevant stream if feedId is from host -> maybe via description?
+      if (action.mid == null) {
+        throw new Error("mid is missing");
+      }
+
+      // TODO only store relevant stream if feedId is from host -> via socket.io?
       const feedId = state.subStreams[action.mid].feed_id;
       const remoteTrack = state.remoteTracks[action.mid];
 
@@ -120,6 +186,10 @@ const reducer = (state, action) => {
         },
       };
     case "remove remote stream":
+      if (action.feedId == null) {
+        throw new Error("feedId is missing");
+      }
+
       const { [action.feedId]: remoteStreamToRemove, ...restRemoteStreams } = state.remoteStreams;
 
       return {
@@ -127,16 +197,20 @@ const reducer = (state, action) => {
         remoteStreams: restRemoteStreams,
       };
     default:
-      throw new Error();
+      throw new Error("unknown type of dispatch operation");
   }
 }
 
 const Room = () => {
-  const [newPublishers, setNewPublishers] = useState([]);
+  const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
-  const [waitingSDPs, setWaitingSDPs] = useState([]);
+  const [waitingSDPs, setWaitingSDPs] = useState<{
+    id: string,
+    offer: JanusJS.JSEP,
+    answer: JanusJS.JSEP | null,
+  }[]>([]);
   // const [socket, setSocket] = useState();
 
   // [
@@ -177,16 +251,33 @@ const Room = () => {
     remoteStreams: {},
   });
 
-  const id = useRef(null);
-  const privateId = useRef(null);
-  const publisherHandle = useRef(null);
-  const subscriberHandle = useRef(null);
+  // feedStreams: {
+  //   [id: number]: Publisher & {
+  //     streams: { id: number, display: string }
+  //   };
+  // };
+  // subStreams: {
+  //   [mid: number]: SubscriberStream;
+  // };
+  // localTracks: MediaStreamTrack[];
+  // localStreams: { [id: string]: MediaStream };
+  // remoteTracks: { [mid: number]: MediaStreamTrack };
+  // remoteStreams: { [id: string]: MediaStream };
+
+  const id = useRef<number>();
+  const privateId = useRef<number>();
+  const publisherHandle = useRef<JanusJS.PluginHandle>();
+  const subscriberHandle = useRef<JanusJS.PluginHandle>();
   const isSubscriberJoining = useRef(false);
 
   const router = useRouter();
 
-  const handleJsep = useCallback(jsep => {
+  const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
+
+    if (type == null || sdp == null) {
+      return;
+    }
 
     const id = sdp.split("\r")[1].split(" ")[2];
 
@@ -202,10 +293,10 @@ const Room = () => {
         ];
       }
 
-      for (const i = 0; i < prev.length; i++) {
+      for (let i = 0; i < prev.length; i++) {
         if (prev[i].id === id && i === 0) {
           const [firstWaitingSDP, ...restWaitingSDPs] = prev;
-          publisherHandle.current.handleRemoteJsep({ jsep: jsep })
+          publisherHandle.current?.handleRemoteJsep({ jsep: jsep })
 
           // ? Handle in useEffect
           // if (restWaitingSDPs.length > 0 && restWaitingSDPs[0].answer != null) {
@@ -230,17 +321,17 @@ const Room = () => {
     }
   }, [handleJsep, waitingSDPs]);
 
-  const parseIntStrict = useCallback(value => {
+  const parseIntStrict = useCallback((value: string) => {
     if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
       return Number(value);
     return NaN;
   }, []);
 
-  const unsubscribeFrom = useCallback(id => {
+  const unsubscribeFrom = useCallback((id: number) => {
     dispatch({ type: "remove feed stream", id: id });
     dispatch({ type: "remove remote stream", feedId: id });
 
-    subscriberHandle.current.send({
+    subscriberHandle.current?.send({
       message: {
         request: "unsubsribe",
         streams: [{ feed: id }],
@@ -249,7 +340,7 @@ const Room = () => {
   }, []);
 
   const roomId = useMemo(() => {
-    if (!router.isReady)
+    if (!router.isReady || typeof router.query.id !== "string")
       return;
 
     const id = parseIntStrict(router.query.id);
@@ -266,7 +357,7 @@ const Room = () => {
   useEffect(() => {
     if (roomId && privateId.current && newPublishers.length > 0) {
       if (hasSubscriberJoined) {
-        subscriberHandle.current.send({
+        subscriberHandle.current?.send({
           message: {
             request: "subscribe",
             streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
@@ -277,7 +368,7 @@ const Room = () => {
         setNewPublishers([]);
       } else if (!isSubscriberJoining.current) {
         isSubscriberJoining.current = true;
-        subscriberHandle.current.send({
+        subscriberHandle.current?.send({
           message: {
             request: "join",
             ptype: "subscriber",
@@ -293,7 +384,7 @@ const Room = () => {
     }
   }, [roomId, newPublishers, hasSubscriberJoined]);
 
-  const availableDevices = useRef();
+  const availableDevices = useRef<MediaDeviceInfo[]>();
 
   useEffect(() => {
     const socketInitializer = async () => {
@@ -330,11 +421,11 @@ const Room = () => {
     }
   }, [])
 
-  const initJanus = useCallback((displayName, isUserHost) => {
+  const initJanus = useCallback((displayName: string, isUserHost: boolean) => {
     Janus.init({
       debug: false,
       callback: () => {
-        Janus.listDevices(devices => {
+        Janus.listDevices((devices: MediaDeviceInfo[]) => {
           // console.log("available devices:", devices.filter(device => device.kind === "videoinput"));
           // console.log("video id", devices.filter(device => device.kind === "videoinput")[0].deviceId)
 
@@ -348,7 +439,7 @@ const Room = () => {
               janus.attach({
                 plugin: "janus.plugin.videoroom",
                 opaqueId: opaqueId,
-                success: pluginHandle => {
+                success: (pluginHandle: JanusJS.PluginHandle) => {
                   // TODO successfully attached
                   // console.log("attached to plugin echotest")
                   publisherHandle.current = pluginHandle;
@@ -381,7 +472,7 @@ const Room = () => {
                       socket.emit("join", id.current, isUserHost);
                     }
 
-                    publisherHandle.current.createOffer({
+                    publisherHandle.current?.createOffer({
                       media: {
                         video: {
                           deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
@@ -390,11 +481,11 @@ const Room = () => {
                         },
                         audio: true,
                       },
-                      success: jsep => {
+                      success: (jsep: JanusJS.JSEP) => {
                         // console.log("### JSEP ###", jsep.type, jsep.sdp)
-                        console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+
                         handleJsep(jsep);
-                        publisherHandle.current.send({
+                        publisherHandle.current?.send({
                           message: {
                             request: "publish",
                           },
@@ -466,7 +557,7 @@ const Room = () => {
                     // })
 
                     if (isUserHost) {
-                      publisherHandle.current.createOffer({
+                      publisherHandle.current?.createOffer({
                         media: {
                           video: {
                             deviceId: devices.filter(device => device.kind === "videoinput")[1].deviceId,
@@ -475,11 +566,11 @@ const Room = () => {
                           },
                           audio: true,
                         },
-                        success: jsep => {
+                        success: (jsep: JanusJS.JSEP) => {
                           // console.log("### JSEP ###", jsep.type, jsep.sdp)
-                          console.log(jsep.sdp.split("\r")[1].split(" ")[2])
+
                           handleJsep(jsep)
-                          publisherHandle.current.send({
+                          publisherHandle.current?.send({
                             message: {
                               request: "publish",
                             },
@@ -489,7 +580,7 @@ const Room = () => {
                         error: error => {
                           // TODO Handle error
                         },
-                        customizeSdp: jsep => {
+                        customizeSdp: (jsep: JanusJS.JSEP) => {
                           // TODO Modify original sdp if needed
                         }
                       })
@@ -500,7 +591,7 @@ const Room = () => {
 
                       let newFeedStreams = {};
 
-                      for (const publisher of msg.publishers) {
+                      for (const publisher of msg.publishers as Publisher[]) {
                         const id = publisher.id;
                         const display = publisher.display;
                         const streams = publisher.streams;
@@ -531,7 +622,7 @@ const Room = () => {
 
                       let newFeedStreams = {};
 
-                      for (const publisher of msg.publishers) {
+                      for (const publisher of msg.publishers as Publisher[]) {
                         const id = publisher.id;
                         const display = publisher.display;
                         const streams = publisher.streams;
@@ -562,7 +653,7 @@ const Room = () => {
                           socket.emit("leave", id.current);
                         }
 
-                        publisherHandle.current.hangup();
+                        publisherHandle.current?.hangup();
                         return;
                       }
                       unsubscribeFrom(msg.unpublished);
@@ -573,7 +664,6 @@ const Room = () => {
                   // TODO if jsep not null, WebRTC negotiation
                   if (jsep) {
                     // console.log("### handle remote JSEP ###", jsep.type, jsep.sdp)
-                    console.log(jsep.sdp.split("\r")[1].split(" ")[2])
                     handleJsep(jsep)
                     // publisherHandle.current.handleRemoteJsep({ jsep: jsep })
                   }
@@ -600,12 +690,12 @@ const Room = () => {
                 detached: () => {
                   // TODO connection closed
                 },
-              })
+              } as JanusJS.PluginOptions)
 
               janus.attach({
                 plugin: "janus.plugin.videoroom",
                 opaqueId: opaqueId,
-                success: pluginHandle => {
+                success: (pluginHandle: JanusJS.PluginHandle) => {
                   subscriberHandle.current = pluginHandle
                 },
                 error: cause => {
@@ -642,18 +732,18 @@ const Room = () => {
                   }
 
                   if (jsep) {
-                    subscriberHandle.current.createAnswer({
+                    subscriberHandle.current?.createAnswer({
                       // We attach the remote OFFER
                       jsep: jsep,
-                      success: ourjsep => {
-                        subscriberHandle.current.send({
+                      success: (ourjsep: JanusJS.JSEP) => {
+                        subscriberHandle.current?.send({
                           message: {
                             request: "start"
                           },
                           jsep: ourjsep
                         });
                       },
-                      error: function (error) {
+                      error: function (error: any) {
                         // An error occurred...
                       }
                     });
@@ -676,7 +766,7 @@ const Room = () => {
                     dispatch({ type: "remove remote track", mid: mid });
                   }
                 },
-              })
+              } as JanusJS.PluginOptions)
             },
             error: cause => {
               // TODO Janus server object couldn't be initialized
@@ -686,14 +776,14 @@ const Room = () => {
               // TODO Janus server object has been destroyed
               // console.log("destroyed")
             }
-          });
+          } as JanusJS.ConstructorOptions);
         });
       }
     })
   }, [handleJsep, roomId, unsubscribeFrom]);
 
   const localVideos = useMemo(() => {
-    let videos = [];
+    let videos: JSX.Element[] = [];
 
     for (const [id, stream] of Object.entries(state.localStreams)) {
       const kind = stream.getTracks()[0].kind;
@@ -736,8 +826,8 @@ const Room = () => {
   }, [isHost, state.feedStreams, state.localStreams]);
 
   const remoteElements = useMemo(() => {
-    let videoElements = [];
-    let audioElements = [];
+    let videoElements: JSX.Element[] = [];
+    let audioElements: JSX.Element[] = [];
 
     // console.log("remote streams:", state.remoteStreams)
 
@@ -825,10 +915,14 @@ const Room = () => {
       >Connect 2nd Stream</button> */}
       <button
         onClick={() => {
+          if (id.current == null) {
+            return;
+          }
+
           const { [id.current]: bla, ...rest } = state.feedStreams;
           console.log(Object.keys(rest)[0])
 
-          subscriberHandle.current.send({
+          subscriberHandle.current?.send({
             message: {
               request: "switch",
               streams: [
@@ -864,11 +958,11 @@ const Room = () => {
       >
         Test Socket
       </button>
-      <form
-        onSubmit={event => {
+      {/* <form
+        onSubmit={(event) => {
           event.preventDefault();
 
-          publisherHandle.current.send({
+          publisherHandle.current?.send({
             message: {
               request: "configure",
               // mid: event.target.mid.value.toString(),
@@ -901,7 +995,7 @@ const Room = () => {
           <input id="desc" />
         </label>
         <button>Submit</button>
-      </form>
+      </form> */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center" }}>
         <form
           onSubmit={async event => {

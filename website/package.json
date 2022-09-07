@@ -17,6 +17,7 @@
     "socket.io-client": "^4.5.1"
   },
   "devDependencies": {
+    "@types/react": "^18.0.18",
     "eslint": "8.17.0",
     "eslint-config-next": "12.1.6"
   }
