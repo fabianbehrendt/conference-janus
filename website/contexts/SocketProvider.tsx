@@ -16,7 +16,7 @@ const SocketProvider: React.FunctionComponent<ISocketProvider> = props => {
 
   useEffect(() => {
     const newSocket = io(
-      "ws://localhost:3000",
+      process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "wss://app.fabianbehrendt.de",
       { path: "/socket/socket.io", }
     );
 
