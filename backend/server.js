@@ -20,8 +20,12 @@ router.get('/', (req, res) => {
 });
 
 io.on('connection', socket => {
+  console.log("user connected")
+  
   socket.on('input-change', msg => {
-    socket.broadcast.emit('update-input', 'Hello Socket');
+    console.log("input-change received, should update input")
+    // socket.broadcast.emit('update-input', 'Hello Socket');
+    socket.emit('update-input', 'Hello Socket')
   })
 
   socket.on('join', (userId, isHost) => {

@@ -8,8 +8,9 @@ import io, { Socket } from "socket.io-client";
 
 import Layout from "../../components/Layout";
 import { Publisher, PublisherStream, SubscriberStream } from "../../interfaces/janus";
+import { useSocket } from "../../contexts/SocketProvider";
 
-let socket: Socket;
+// let socket: Socket;
 
 interface IReducerState {
   // feedStreams: { [id: number]: Omit<Publisher, "streams"> & { streams: PublisherStream[] & { id: number, display: string }[] } };
@@ -271,6 +272,73 @@ const Room = () => {
   const isSubscriberJoining = useRef(false);
 
   const router = useRouter();
+  const socket = useSocket();
+
+  useEffect(() => {
+    if (socket == null) {
+      return;
+    }
+
+    socket.on("connect", () => {
+      console.log("connected to socket")
+    })
+
+    socket.on("disconnect", reason => {
+      if (reason === "io server disconnect") {
+        // TODO Not tested yet!
+        socket.connect();
+      }
+
+      // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
+      socket.emit("leave", id.current);
+    })
+
+    socket.on("update-input", msg => {
+      console.log(msg)
+    })
+
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("leave");
+      socket.off("update-input");
+    }
+  }, [socket]);
+
+  // useEffect(() => {
+  //   const socketInitializer = async () => {
+  //     // TODO
+  //     // await fetch("/api/socket");
+  //     // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de/socket");
+  //     // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "wss://app.fabianbehrendt.de", {
+  //     //   path: "/socket/socket.io",
+  //     // });
+
+  //     socket = io("ws://localhost:3000", {
+  //       path: "/socket/socket.io",
+  //     });
+
+  //     socket.on("connect", () => {
+  //       console.log("connected to socket")
+  //     })
+
+  //     socket.on("disconnect", reason => {
+  //       if (reason === "io server disconnect") {
+  //         // TODO Not tested yet!
+  //         socket.connect();
+  //       }
+
+  //       // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
+  //       socket.emit("leave", id.current);
+  //     })
+
+  //     socket.on("update-input", msg => {
+  //       console.log(msg)
+  //     })
+  //   };
+
+  //   socketInitializer();
+  // }, []);
 
   const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
@@ -387,42 +455,16 @@ const Room = () => {
   const availableDevices = useRef<MediaDeviceInfo[]>();
 
   useEffect(() => {
-    const socketInitializer = async () => {
-      // await fetch("/api/socket");
-      // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de/socket");
-      socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de", {
-        path: "/socket/socket.io",
-      });
-
-      socket.on("connect", () => {
-        console.log("connected to socket")
-      })
-
-      socket.on("disconnect", reason => {
-        if (reason === "io server disconnect") {
-          // TODO Not tested yet!
-          socket.connect();
-        }
-
-        // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
-        socket.emit("leave", id.current);
-      })
-
-      socket.on("update-input", msg => {
-        console.log(msg)
-      })
-    };
-
-    socketInitializer();
-  }, []);
-
-  useEffect(() => {
     window.onbeforeunload = () => {
       if (socket?.connected) {
         socket.emit("leave", id.current);
       }
     }
-  }, [])
+
+    return () => {
+      window.onbeforeunload = () => { };
+    }
+  }, [socket])
 
   const initJanus = useCallback((displayName: string, isUserHost: boolean) => {
     Janus.init({
@@ -783,7 +825,7 @@ const Room = () => {
         });
       }
     })
-  }, [handleJsep, roomId, unsubscribeFrom]);
+  }, [handleJsep, roomId, unsubscribeFrom, socket]);
 
   const localVideos = useMemo(() => {
     let videos: JSX.Element[] = [];
