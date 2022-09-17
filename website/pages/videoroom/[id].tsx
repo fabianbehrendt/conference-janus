@@ -16,7 +16,7 @@ interface IReducerState {
   localTracks: MediaStreamTrack[];
   localStreams: { [id: string]: MediaStream };
   remoteTracks: { [mid: number]: MediaStreamTrack };
-  remoteStreams: { [id: string]: MediaStream };
+  remoteStreams: { [id: number]: { audio: MediaStream, video: MediaStream } };
 }
 
 interface IReducerAction {
@@ -294,16 +294,12 @@ const Room = () => {
           streams: [
             {
               feed: hostId,
-              mid: showAlt ? "2" : "0", // "2"
+              mid: showAlt ? "2" : "0",
               sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "audio")?.mid,
             },
-            /*
-              0 -> 2, 3
-              1 -> 0, 1
-            */
             {
               feed: hostId,
-              mid: showAlt ? "3" : "1", // "3"
+              mid: showAlt ? "3" : "1",
               sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "video")?.mid,
             }
           ]
@@ -316,6 +312,7 @@ const Room = () => {
       socket.off("disconnect");
       socket.off("leave");
       socket.off("update-input");
+      socket.off("switch-stream");
     }
   }, [currentMidOfHost, socket, state.subStreams]);
 
@@ -345,10 +342,6 @@ const Room = () => {
           const [firstWaitingSDP, ...restWaitingSDPs] = prev;
           publisherHandle.current?.handleRemoteJsep({ jsep: jsep })
 
-          // ? Handle in useEffect
-          // if (restWaitingSDPs.length > 0 && restWaitingSDPs[0].answer != null) {
-          //   handleJsep(restWaitingSDPs[0].answer)
-          // }
           return restWaitingSDPs;
         } else if (prev[i].id === id) {
           const newWaitingSDPs = [...prev];
@@ -523,62 +516,6 @@ const Room = () => {
                         // TODO Modify original sdp if needed
                       }
                     })
-
-                    // publisherHandle.current.createOffer({
-                    //   media: {
-                    //     video: {
-                    //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
-                    //       width: 192,
-                    //       height: 144,
-                    //     },
-                    //     audio: true,
-                    //   },
-                    //   success: jsep => {
-                    //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
-                    //     console.log(jsep.sdp.split("\r")[1].split(" ")[2])
-                    //     handleJsep(jsep);
-                    //     publisherHandle.current.send({
-                    //       message: {
-                    //         request: "publish",
-                    //       },
-                    //       jsep: jsep,
-                    //     })
-                    //   },
-                    //   error: error => {
-                    //     // TODO Handle error
-                    //   },
-                    //   customizeSdp: jsep => {
-                    //     // TODO Modify original sdp if needed
-                    //   }
-                    // })
-
-                    // publisherHandle.current.createOffer({
-                    //   media: {
-                    //     video: {
-                    //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
-                    //       width: 192,
-                    //       height: 144,
-                    //     },
-                    //     audio: true,
-                    //   },
-                    //   success: jsep => {
-                    //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
-                    //     console.log(jsep.sdp.split("\r")[1].split(" ")[2])
-                    //     handleJsep(jsep);
-                    //     publisherHandle.current.send({
-                    //       message: {
-                    //         request: "publish",
-                    //       },
-                    //       jsep: jsep,
-                    //     })
-                    //   },
-                    //   error: error => {
-                    //     // TODO Handle error
-                    //   },
-                    //   customizeSdp: jsep => {
-                    //     // TODO Modify original sdp if needed
-                    //   }
-                    // })
 
                     if (isUserHost) {
                       publisherHandle.current?.createOffer({
@@ -807,14 +744,13 @@ const Room = () => {
   }, [handleJsep, roomId, unsubscribeFrom, socket]);
 
   const localVideos = useMemo(() => {
-    return Object.entries(state.localStreams)
-      .filter(([id, stream]) => stream.getTracks()[0].kind === "video")
-      .map(([id, stream], idx) => (
+    return Object.values(state.localStreams)
+      .filter((stream) => stream.getTracks()[0].kind === "video")
+      .map((stream, idx) => (
         <div
           key={stream.id}
-          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
+          style={{ display: "flex", position: "relative", boxSizing: "border-box" }}
         >
-          <h3 style={{ margin: 0 }}>{idx === 0 ? "Primary" : "Alternative"}</h3>
           <video
             autoPlay
             playsInline
@@ -827,149 +763,64 @@ const Room = () => {
                 ref.srcObject = stream;
             }}
           />
-          {isHost && (
-            <select>
-              {Object.values(state.feedStreams).map(feedStream => {
-                return (
-                  <option key={feedStream.id}>
-                    {feedStream.display}
-                  </option>
-                )
-              })}
-            </select>
-          )}
+          <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
+            {`${Object.values(state.feedStreams).find(feedStream => feedStream.id === id.current)?.display} ${isHost ? idx + 1 : ""}`}
+          </p>
         </div>
       ))
-
-    // let videos: JSX.Element[] = [];
-
-    // for (const [id, stream] of Object.entries(state.localStreams)) {
-    //   const kind = stream.getTracks()[0].kind;
-
-    //   if (kind === "video") {
-    //     videos = [...videos, (
-    //       <div
-    //         key={stream.id}
-    //         style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
-    //       >
-    //         <h3 style={{ margin: 0 }}>#1</h3>
-    //         <video
-    //           autoPlay
-    //           playsInline
-    //           muted
-    //           style={{ border: "1px solid black" }}
-    //           width={192}
-    //           height={144}
-    //           ref={ref => {
-    //             if (ref)
-    //               ref.srcObject = stream;
-    //           }}
-    //         />
-    //         {isHost && (
-    //           <select>
-    //             {Object.values(state.feedStreams).map(feedStream => {
-    //               return (
-    //                 <option key={feedStream.id}>
-    //                   {feedStream.display}
-    //                 </option>
-    //               )
-    //             })}
-    //           </select>
-    //         )}
-    //       </div>
-    //     )]
-    //   }
-    // }
-
-    // return videos;
   }, [isHost, state.feedStreams, state.localStreams]);
 
   const remoteElements = useMemo(() => {
-    let videoElements: JSX.Element[] = [];
-    let audioElements: JSX.Element[] = [];
-
-    // console.log("remote streams:", state.remoteStreams)
-
-    for (const [feedId, streams] of Object.entries(state.remoteStreams)) {
-      for (const [type, stream] of Object.entries(streams)) {
-        if (type === "audio") {
-          audioElements = [
-            ...audioElements,
+    const elements = Object.entries(state.remoteStreams)
+      .map(([feedId, streams]) => {
+        return (
+          <div
+            key={feedId}
+            style={{ display: "flex" }}
+          >
             <audio
-              key={stream.id}
               autoPlay
               hidden
               playsInline
               ref={ref => {
                 if (ref) {
-                  ref.srcObject = stream;
+                  ref.srcObject = streams.audio;
                 }
               }}
             />
-          ];
-        } else if (type === "video") {
-          videoElements = [
-            ...videoElements,
-            <video
-              key={stream.id}
-              autoPlay
-              playsInline
-              style={{ border: "1px solid black" }}
-              width={320}
-              height={240}
-              ref={ref => {
-                if (ref) {
-                  ref.srcObject = stream;
-                }
-              }}
-            />
-          ]
-        }
-      }
-    }
+            <div
+              style={{ display: "flex", position: "relative" }}
+            >
+              <video
+                autoPlay
+                playsInline
+                style={{ border: "1px solid black" }}
+                width={320}
+                height={240}
+                ref={ref => {
+                  if (ref) {
+                    ref.srcObject = streams.video;
+                  }
+                }}
+              />
+              <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
+                {Object.values(state.feedStreams).find(feedStream => feedStream.id.toString() === feedId)?.display}
+              </p>
+            </div>
+          </div>
+        );
+      })
 
     return (
       <div style={{ display: "flex" }}>
-        {videoElements}
-        {audioElements}
+        {elements}
       </div>
     );
-  }, [state.remoteStreams])
+  }, [state.feedStreams, state.remoteStreams])
 
   return (
     <Layout>
       <h1 style={{ textAlign: "center" }}>Room {roomId}</h1>
-      {/* <button
-        onClick={() => {
-          console.log(availableDevices.current.filter(device => device.kind === "videoinput")[1])
-          // TODO ???
-
-          publisherHandle.current.createOffer({
-            media: {
-              video: {
-                deviceId: availableDevices.current.filter(device => device.kind === "videoinput")[1].deviceId,
-                width: 192,
-                height: 144,
-              }
-            },
-            success: jsep => {
-              console.log("### added ###")
-              publisherHandle.current.send({
-                message: {
-                  request: "publish",
-                },
-                jsep: jsep,
-              })
-            },
-            error: error => {
-              // TODO Handle error
-            },
-            customizeSdp: jsep => {
-              // TODO Modify original sdp if needed
-            }
-          })
-        }}
-      >Connect 2nd Stream</button> */}
       <button
         onClick={() => {
           if (id.current == null) {
@@ -1015,44 +866,6 @@ const Room = () => {
       >
         Test Socket
       </button>
-      {/* <form
-        onSubmit={(event) => {
-          event.preventDefault();
-
-          publisherHandle.current?.send({
-            message: {
-              request: "configure",
-              // mid: event.target.mid.value.toString(),
-              // streams: [
-              //   {
-              //     mid: event.target.mid.value.toString(),
-              //     keyframe: false,
-              //   },
-              // ],
-              descriptions: [
-                {
-                  mid: event.target.mid.value.toString(),
-                  description: event.target.desc.value.toString(),
-                },
-                // {
-                //   mid: (parseInt(event.target.mid.value) * 2 + 1).toString(),
-                //   description: event.target.desc.value.toString(),
-                // },
-              ],
-            }
-          });
-        }}
-      >
-        <label>
-          Mid:
-          <input id="mid" />
-        </label>
-        <label>
-          Description:
-          <input id="desc" />
-        </label>
-        <button>Submit</button>
-      </form> */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center" }}>
         <form
           onSubmit={async event => {
