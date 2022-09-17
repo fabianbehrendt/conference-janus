@@ -4,13 +4,10 @@ import React, { useEffect, useCallback, useRef, useState, useMemo, useReducer, R
 // @ts-ignore
 import { Janus } from 'janus-gateway';
 import { JanusJS } from "../../janus";
-import io, { Socket } from "socket.io-client";
 
 import Layout from "../../components/Layout";
 import { Publisher, PublisherStream, SubscriberStream } from "../../interfaces/janus";
 import { useSocket } from "../../contexts/SocketProvider";
-
-// let socket: Socket;
 
 interface IReducerState {
   // feedStreams: { [id: number]: Omit<Publisher, "streams"> & { streams: PublisherStream[] & { id: number, display: string }[] } };
@@ -207,12 +204,12 @@ const Room = () => {
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
+  const [currentMidOfHost, setCurrentMidOfHost] = useState(0);
   const [waitingSDPs, setWaitingSDPs] = useState<{
     id: string,
     offer: JanusJS.JSEP,
     answer: JanusJS.JSEP | null,
   }[]>([]);
-  // const [socket, setSocket] = useState();
 
   // [
   //   {
@@ -252,19 +249,6 @@ const Room = () => {
     remoteStreams: {},
   });
 
-  // feedStreams: {
-  //   [id: number]: Publisher & {
-  //     streams: { id: number, display: string }
-  //   };
-  // };
-  // subStreams: {
-  //   [mid: number]: SubscriberStream;
-  // };
-  // localTracks: MediaStreamTrack[];
-  // localStreams: { [id: string]: MediaStream };
-  // remoteTracks: { [mid: number]: MediaStreamTrack };
-  // remoteStreams: { [id: string]: MediaStream };
-
   const id = useRef<number>();
   const privateId = useRef<number>();
   const publisherHandle = useRef<JanusJS.PluginHandle>();
@@ -297,48 +281,43 @@ const Room = () => {
       console.log(msg)
     })
 
+    socket.on("switch-stream", (hostId: number, showAlt: boolean) => {
+      console.log("show alternative stream:", showAlt, hostId);
+
+      if (hostId == null) {
+        return;
+      }
+
+      subscriberHandle.current?.send({
+        message: {
+          request: "switch",
+          streams: [
+            {
+              feed: hostId,
+              mid: showAlt ? "2" : "0", // "2"
+              sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "audio")?.mid,
+            },
+            /*
+              0 -> 2, 3
+              1 -> 0, 1
+            */
+            {
+              feed: hostId,
+              mid: showAlt ? "3" : "1", // "3"
+              sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "video")?.mid,
+            }
+          ]
+        }
+      })
+    })
+
     return () => {
       socket.off("connect");
       socket.off("disconnect");
       socket.off("leave");
       socket.off("update-input");
     }
-  }, [socket]);
-
-  // useEffect(() => {
-  //   const socketInitializer = async () => {
-  //     // TODO
-  //     // await fetch("/api/socket");
-  //     // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "ws://app.fabianbehrendt.de/socket");
-  //     // socket = io(process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "wss://app.fabianbehrendt.de", {
-  //     //   path: "/socket/socket.io",
-  //     // });
-
-  //     socket = io("ws://localhost:3000", {
-  //       path: "/socket/socket.io",
-  //     });
-
-  //     socket.on("connect", () => {
-  //       console.log("connected to socket")
-  //     })
-
-  //     socket.on("disconnect", reason => {
-  //       if (reason === "io server disconnect") {
-  //         // TODO Not tested yet!
-  //         socket.connect();
-  //       }
-
-  //       // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
-  //       socket.emit("leave", id.current);
-  //     })
-
-  //     socket.on("update-input", msg => {
-  //       console.log(msg)
-  //     })
-  //   };
-
-  //   socketInitializer();
-  // }, []);
+  }, [currentMidOfHost, socket, state.subStreams]);
 
   const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
@@ -828,46 +807,81 @@ const Room = () => {
   }, [handleJsep, roomId, unsubscribeFrom, socket]);
 
   const localVideos = useMemo(() => {
-    let videos: JSX.Element[] = [];
+    return Object.entries(state.localStreams)
+      .filter(([id, stream]) => stream.getTracks()[0].kind === "video")
+      .map(([id, stream], idx) => (
+        <div
+          key={stream.id}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
+        >
+          <h3 style={{ margin: 0 }}>{idx === 0 ? "Primary" : "Alternative"}</h3>
+          <video
+            autoPlay
+            playsInline
+            muted
+            style={{ border: "1px solid black" }}
+            width={192}
+            height={144}
+            ref={ref => {
+              if (ref)
+                ref.srcObject = stream;
+            }}
+          />
+          {isHost && (
+            <select>
+              {Object.values(state.feedStreams).map(feedStream => {
+                return (
+                  <option key={feedStream.id}>
+                    {feedStream.display}
+                  </option>
+                )
+              })}
+            </select>
+          )}
+        </div>
+      ))
 
-    for (const [id, stream] of Object.entries(state.localStreams)) {
-      const kind = stream.getTracks()[0].kind;
+    // let videos: JSX.Element[] = [];
 
-      if (kind === "video") {
-        videos = [...videos, (
-          <div
-            key={stream.id}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
-          >
-            <video
-              autoPlay
-              playsInline
-              muted
-              style={{ border: "1px solid black" }}
-              width={192}
-              height={144}
-              ref={ref => {
-                if (ref)
-                  ref.srcObject = stream;
-              }}
-            />
-            {isHost && (
-              <select>
-                {Object.values(state.feedStreams).map(feedStream => {
-                  return (
-                    <option key={feedStream.id}>
-                      {feedStream.display}
-                    </option>
-                  )
-                })}
-              </select>
-            )}
-          </div>
-        )]
-      }
-    }
+    // for (const [id, stream] of Object.entries(state.localStreams)) {
+    //   const kind = stream.getTracks()[0].kind;
 
-    return videos;
+    //   if (kind === "video") {
+    //     videos = [...videos, (
+    //       <div
+    //         key={stream.id}
+    //         style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
+    //       >
+    //         <h3 style={{ margin: 0 }}>#1</h3>
+    //         <video
+    //           autoPlay
+    //           playsInline
+    //           muted
+    //           style={{ border: "1px solid black" }}
+    //           width={192}
+    //           height={144}
+    //           ref={ref => {
+    //             if (ref)
+    //               ref.srcObject = stream;
+    //           }}
+    //         />
+    //         {isHost && (
+    //           <select>
+    //             {Object.values(state.feedStreams).map(feedStream => {
+    //               return (
+    //                 <option key={feedStream.id}>
+    //                   {feedStream.display}
+    //                 </option>
+    //               )
+    //             })}
+    //           </select>
+    //         )}
+    //       </div>
+    //     )]
+    //   }
+    // }
+
+    // return videos;
   }, [isHost, state.feedStreams, state.localStreams]);
 
   const remoteElements = useMemo(() => {
@@ -922,8 +936,6 @@ const Room = () => {
     );
   }, [state.remoteStreams])
 
-  const [currentMid, setCurrentMid] = useState(0);
-
   return (
     <Layout>
       <h1 style={{ textAlign: "center" }}>Room {roomId}</h1>
@@ -965,7 +977,7 @@ const Room = () => {
           }
 
           const { [id.current]: bla, ...rest } = state.feedStreams;
-          console.log(Object.keys(rest)[0])
+          // console.log(Object.keys(rest)[0])
 
           subscriberHandle.current?.send({
             message: {
@@ -973,7 +985,7 @@ const Room = () => {
               streams: [
                 {
                   feed: parseInt(Object.keys(rest)[0]),
-                  mid: ((currentMid * 2 + 2) % 4).toString(), // "2"
+                  mid: ((currentMidOfHost * 2 + 2) % 4).toString(), // "2"
                   sub_mid: "0"
                 },
                 /*
@@ -982,14 +994,14 @@ const Room = () => {
                 */
                 {
                   feed: parseInt(Object.keys(rest)[0]),
-                  mid: ((currentMid * 2 + 3) % 4).toString(), // "3"
+                  mid: ((currentMidOfHost * 2 + 3) % 4).toString(), // "3"
                   sub_mid: "1"
                 }
               ]
             }
           })
 
-          setCurrentMid(prev => (prev + 1) % 2)
+          setCurrentMidOfHost(prev => (prev + 1) % 2)
         }}
       >
         Switch
@@ -1080,6 +1092,35 @@ const Room = () => {
             <div style={{ display: "flex" }}>
               {localVideos}
             </div>
+            {isHost && (
+              <>
+                <p style={{ margin: 0, marginTop: "8px" }}>Show alternative stream?</p>
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                }}>
+                  {Object.values(state.feedStreams)
+                    .filter(feedStream => feedStream.id !== id.current)
+                    .map(feedStream => (
+                      <div key={feedStream.id} style={{
+                        display: "flex",
+                        gap: "8px"
+                      }}>
+                        <div>{feedStream.display}</div>
+                        <input
+                          type="checkbox"
+                          style={{
+                            marginLeft: "auto"
+                          }}
+                          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                            socket?.emit("change-source", feedStream.id, event.target.checked)
+                          }}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
             {remoteElements}
           </>
         )}

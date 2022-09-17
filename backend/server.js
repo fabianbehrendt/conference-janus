@@ -20,10 +20,7 @@ router.get('/', (req, res) => {
 });
 
 io.on('connection', socket => {
-  console.log("user connected")
-  
   socket.on('input-change', msg => {
-    console.log("input-change received, should update input")
     // socket.broadcast.emit('update-input', 'Hello Socket');
     socket.emit('update-input', 'Hello Socket')
   })
@@ -34,12 +31,12 @@ io.on('connection', socket => {
     }
 
     if (isHost) {
-      host = userId;
+      host = { socketId: socket.id, janusId: userId };
     } else {
-      users = [...users, userId];
+      users = [...users, { socketId: socket.id, janusId: userId }];
     }
 
-    console.log("### join ###\nhost:", host, "users", users)
+    console.log("\n### J O I N ###\nhost:", host, "\nusers", users)
   })
 
   socket.on('leave', userId => {
@@ -50,10 +47,16 @@ io.on('connection', socket => {
     if (host === userId) {
       host = null;
     } else {
-      users = users.filter(id => id !== userId);
+      users = users.filter(({ janusId }) => janusId !== userId);
     }
 
-    console.log("### leave ###\nhost:", host, "users", users)
+    console.log("\n### L E A V E ###\nhost:", host, "\nusers", users)
+  })
+
+  socket.on('change-source', (userId, showAlt) => {
+    const targetConnectionId = users.filter(({ janusId }) => janusId === userId)[0].socketId;
+
+    socket.to(targetConnectionId).emit('switch-stream', host.janusId, showAlt)
   })
 });
 
