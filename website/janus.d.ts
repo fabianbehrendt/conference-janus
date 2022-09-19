@@ -208,12 +208,12 @@ declare namespace JanusJS {
     handleRemoteJsep(params: { jsep: JSEP }): void;
     dtmf(params: any): void;
     data(params: any): void;
-    isAudioMuted(): boolean;
-    muteAudio(): void;
-    unmuteAudio(): void;
-    isVideoMuted(): boolean;
-    muteVideo(): void;
-    unmuteVideo(): void;
+    isAudioMuted(mid?: string): boolean;
+    muteAudio(mid?: string): void;
+    unmuteAudio(mid?: string): void;
+    isVideoMuted(mid?: string): boolean;
+    muteVideo(mid?: string): void;
+    unmuteVideo(mid?: string): void;
     getBitrate(): string;
     hangup(sendRequest?: boolean): void;
     detach(params?: DetachOptions): void;

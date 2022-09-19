@@ -204,7 +204,6 @@ const Room = () => {
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
-  const [currentMidOfHost, setCurrentMidOfHost] = useState(0);
   const [waitingSDPs, setWaitingSDPs] = useState<{
     id: string,
     offer: JanusJS.JSEP,
@@ -314,7 +313,7 @@ const Room = () => {
       socket.off("update-input");
       socket.off("switch-stream");
     }
-  }, [currentMidOfHost, socket, state.subStreams]);
+  }, [socket, state.subStreams]);
 
   const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
@@ -823,42 +822,6 @@ const Room = () => {
       <h1 style={{ textAlign: "center" }}>Room {roomId}</h1>
       <button
         onClick={() => {
-          if (id.current == null) {
-            return;
-          }
-
-          const { [id.current]: bla, ...rest } = state.feedStreams;
-          // console.log(Object.keys(rest)[0])
-
-          subscriberHandle.current?.send({
-            message: {
-              request: "switch",
-              streams: [
-                {
-                  feed: parseInt(Object.keys(rest)[0]),
-                  mid: ((currentMidOfHost * 2 + 2) % 4).toString(), // "2"
-                  sub_mid: "0"
-                },
-                /*
-                  0 -> 2, 3
-                  1 -> 0, 1
-                */
-                {
-                  feed: parseInt(Object.keys(rest)[0]),
-                  mid: ((currentMidOfHost * 2 + 3) % 4).toString(), // "3"
-                  sub_mid: "1"
-                }
-              ]
-            }
-          })
-
-          setCurrentMidOfHost(prev => (prev + 1) % 2)
-        }}
-      >
-        Switch
-      </button>
-      <button
-        onClick={() => {
           if (socket?.connected) {
             socket.emit("input-change")
           }
@@ -904,6 +867,46 @@ const Room = () => {
           <>
             <div style={{ display: "flex" }}>
               {localVideos}
+            </div>
+            <div style={{display: "flex", gap: 8}}>
+              <button
+                onClick={() => {
+                  if (id.current == null) {
+                    return;
+                  }
+
+                  state.feedStreams[id.current].streams
+                    .filter(stream => stream.type === "video")
+                    .forEach(stream => {
+                      publisherHandle.current?.isVideoMuted(stream.mid) ? (
+                        publisherHandle.current.unmuteVideo(stream.mid)
+                      ) : (
+                        publisherHandle.current?.muteVideo(stream.mid)
+                      )
+                    })
+                }}
+              >
+                Toggle Video
+              </button>
+              <button
+                onClick={() => {
+                  if (id.current == null) {
+                    return;
+                  }
+
+                  state.feedStreams[id.current].streams
+                    .filter(stream => stream.type === "audio")
+                    .forEach(stream => {
+                      publisherHandle.current?.isAudioMuted(stream.mid) ? (
+                        publisherHandle.current.unmuteAudio(stream.mid)
+                      ) : (
+                        publisherHandle.current?.muteAudio(stream.mid)
+                      )
+                    })
+                }}
+              >
+                Toggle Audio
+              </button>
             </div>
             {isHost && (
               <>
