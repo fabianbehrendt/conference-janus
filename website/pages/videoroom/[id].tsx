@@ -17,10 +17,11 @@ interface IReducerState {
   localStreams: { [id: string]: MediaStream };
   remoteTracks: { [mid: number]: MediaStreamTrack };
   remoteStreams: { [id: number]: { audio: MediaStream, video: MediaStream } };
+  messages: { display: string, data: string }[];
 }
 
 interface IReducerAction {
-  type: "add feed stream" | "remove feed stream" | "add sub stream" | "remove sub stream" | "add local track" | "remove local track" | "add local stream" | "remove local stream" | "add remote track" | "remove remote track" | "add remote stream" | "remove remote stream";
+  type: "add feed stream" | "remove feed stream" | "add sub stream" | "remove sub stream" | "add local track" | "remove local track" | "add local stream" | "remove local stream" | "add remote track" | "remove remote track" | "add remote stream" | "remove remote stream" | "add message";
   id?: number;
   display?: string;
   streams?: PublisherStream[];
@@ -28,6 +29,7 @@ interface IReducerAction {
   stream?: SubscriberStream;
   track?: MediaStreamTrack;
   feedId?: number;
+  data?: string;
 }
 
 const reducer = (state: IReducerState, action: IReducerAction): IReducerState => {
@@ -194,6 +196,21 @@ const reducer = (state: IReducerState, action: IReducerAction): IReducerState =>
         ...state,
         remoteStreams: restRemoteStreams,
       };
+    case "add message":
+      if (action.id == null || action.data == null) {
+        throw new Error("id or data is missing");
+      }
+
+      return {
+        ...state,
+        messages: [
+          ...state.messages,
+          {
+            display: state.feedStreams[action.id].display,
+            data: action.data,
+          },
+        ],
+      }
     default:
       throw new Error("unknown type of dispatch operation");
   }
@@ -209,6 +226,7 @@ const Room = () => {
     offer: JanusJS.JSEP,
     answer: JanusJS.JSEP | null,
   }[]>([]);
+  const [messages, setMessages] = useState<{ id: string, data: string }[]>([]);
 
   // [
   //   {
@@ -246,6 +264,7 @@ const Room = () => {
     localStreams: {},
     remoteTracks: {},
     remoteStreams: {},
+    messages: [],
   });
 
   const id = useRef<number>();
@@ -287,6 +306,12 @@ const Room = () => {
         return;
       }
 
+      // TODO remove hard coded mid, replace with mid from feedStreams
+      const hostVideoStreams = state.feedStreams[hostId].streams
+        .filter(stream => stream.type === "video");
+
+      console.log("host video streams", hostVideoStreams)
+
       subscriberHandle.current?.send({
         message: {
           request: "switch",
@@ -313,7 +338,7 @@ const Room = () => {
       socket.off("update-input");
       socket.off("switch-stream");
     }
-  }, [socket, state.subStreams]);
+  }, [socket, state.feedStreams, state.subStreams]);
 
   const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
@@ -394,13 +419,33 @@ const Room = () => {
 
 
   useEffect(() => {
+    // TODO currently produces duplicate streams e.g. when updating streams (as they will be added to newPublishers and be ready for subscription, again)
+
+    console.log("new publishers:", newPublishers);
+    // TODO Iterate over streams of new publisher(s)
+
     if (roomId && privateId.current && newPublishers.length > 0) {
+      let streams: { feed: number; mid: string; }[] = [];
+
+      for (const newPublisher of newPublishers) {
+        streams = [
+          ...streams,
+          ...newPublisher.streams
+            .filter(stream => stream.description === "primary")
+            .map(stream => ({ feed: newPublisher.id, mid: stream.mid }))
+        ]
+      }
+
+      console.log("new streams:", streams);
+      console.log("publisher streams:", newPublishers.map(newPublisher => newPublisher.streams))
+
       if (hasSubscriberJoined) {
         subscriberHandle.current?.send({
           message: {
             request: "subscribe",
-            streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
-              .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
+            // streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
+            //   .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
+            streams: streams,
           }
         })
 
@@ -413,8 +458,9 @@ const Room = () => {
             ptype: "subscriber",
             room: roomId,
             private_id: privateId.current,
-            streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
-              .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
+            // streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
+            //   .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
+            streams: streams,
           }
         })
 
@@ -496,6 +542,7 @@ const Room = () => {
                           height: 144,
                         },
                         audio: true,
+                        data: true,
                       },
                       success: (jsep: JanusJS.JSEP) => {
                         // console.log("### JSEP ###", jsep.type, jsep.sdp)
@@ -504,6 +551,20 @@ const Room = () => {
                         publisherHandle.current?.send({
                           message: {
                             request: "publish",
+                            descriptions: [
+                              {
+                                mid: "0",
+                                description: "primary",
+                              },
+                              {
+                                mid: "1",
+                                description: "primary",
+                              },
+                              {
+                                mid: "2",
+                                description: "primary",
+                              }
+                            ],
                           },
                           jsep: jsep,
                         })
@@ -533,6 +594,16 @@ const Room = () => {
                           publisherHandle.current?.send({
                             message: {
                               request: "publish",
+                              descriptions: [
+                                {
+                                  mid: "0",
+                                  description: "alternative",
+                                },
+                                {
+                                  mid: "1",
+                                  description: "alternative",
+                                },
+                              ],
                             },
                             jsep: jsep,
                           })
@@ -644,6 +715,12 @@ const Room = () => {
                 onremotetrack: (track, mid, added) => {
                   // nothing to expect here
                 },
+                ondataopen: (data: any) => {
+                  console.log("on publisher data open", data);
+                },
+                ondata: (data: any) => {
+                  console.log("on publisher data", data);
+                },
                 oncleanup: () => {
                   // TODO clean UI
                 },
@@ -691,10 +768,42 @@ const Room = () => {
                     }
                   }
 
+                  // publisherHandle.current?.createOffer({
+                  //   media: {
+                  //     video: {
+                  //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
+                  //       width: 192,
+                  //       height: 144,
+                  //     },
+                  //     audio: true,
+                  //     data: true
+                  //   },
+                  //   success: (jsep: JanusJS.JSEP) => {
+                  //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
+
+                  //     handleJsep(jsep);
+                  //     publisherHandle.current?.send({
+                  //       message: {
+                  //         request: "publish",
+                  //       },
+                  //       jsep: jsep,
+                  //     })
+                  //   },
+                  //   error: error => {
+                  //     // TODO Handle error
+                  //   },
+                  //   customizeSdp: jsep => {
+                  //     // TODO Modify original sdp if needed
+                  //   }
+                  // })
+
                   if (jsep) {
                     subscriberHandle.current?.createAnswer({
                       // We attach the remote OFFER
                       jsep: jsep,
+                      media: {
+                        data: true,
+                      },
                       success: (ourjsep: JanusJS.JSEP) => {
                         subscriberHandle.current?.send({
                           message: {
@@ -703,8 +812,9 @@ const Room = () => {
                           jsep: ourjsep
                         });
                       },
-                      error: function (error: any) {
+                      error: (error: any) => {
                         // An error occurred...
+                        alert(error);
                       }
                     });
                   }
@@ -713,9 +823,9 @@ const Room = () => {
                   // TODO local track has been added or removed
                 },
                 onremotetrack: (track, mid, added) => {
-                  // TODO on description change, maybe update existing mid instead of creating a new one ???
+                  // TODO on description change, maybe update existing mid instead of creating a new one ??? -> look at newPublishers
 
-                  console.log("remote track", track, mid, added)
+                  // console.log("remote track", track, mid, added)
                   // TODO remote track with specific mid has been added or removed
                   if (added) {
                     // console.log("remote track received:", track, mid)
@@ -725,6 +835,13 @@ const Room = () => {
                   } else {
                     dispatch({ type: "remove remote track", mid: mid });
                   }
+                },
+                ondataopen: (data: any) => {
+                  console.log("on subscriber data open", data);
+                },
+                ondata: (data: string, from: string) => {
+                  console.log(`Received data from ${from}:\n${data}`)
+                  dispatch({ type: "add message", id: parseIntStrict(from), data: data })
                 },
               } as JanusJS.PluginOptions)
             },
@@ -740,7 +857,7 @@ const Room = () => {
         });
       }
     })
-  }, [handleJsep, roomId, unsubscribeFrom, socket]);
+  }, [roomId, socket, handleJsep, unsubscribeFrom, parseIntStrict]);
 
   const localVideos = useMemo(() => {
     return Object.values(state.localStreams)
@@ -829,6 +946,37 @@ const Room = () => {
       >
         Test Socket
       </button>
+      <form
+        onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+
+          const data = event.currentTarget.datainput.value;
+
+          if (id.current == null || data.length === 0) {
+            return;
+          }
+
+          const ownId = id.current;
+
+          publisherHandle.current?.data({
+            text: event.currentTarget.datainput.value,
+            error: (reason: any) => {
+              alert(reason);
+            },
+            success: () => {
+              dispatch({ type: "add message", id: ownId, data: data })
+              event.currentTarget.datainput.value = "";
+            },
+          });
+        }}
+      >
+        <input
+          type="text"
+          name="datainput"
+          placeholder="Write message..."
+        />
+        <button>Send</button>
+      </form>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center" }}>
         <form
           onSubmit={async event => {
@@ -868,7 +1016,7 @@ const Room = () => {
             <div style={{ display: "flex" }}>
               {localVideos}
             </div>
-            <div style={{display: "flex", gap: 8}}>
+            <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => {
                   if (id.current == null) {
@@ -907,6 +1055,15 @@ const Room = () => {
               >
                 Toggle Audio
               </button>
+              <button
+                onClick={() => {
+                  subscriberHandle.current?.hangup();
+                  publisherHandle.current?.hangup();
+                  router.push("/videoroom");
+                }}
+              >
+                Hangup
+              </button>
             </div>
             {isHost && (
               <>
@@ -938,6 +1095,13 @@ const Room = () => {
               </>
             )}
             {remoteElements}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {state.messages.map(({ display, data }, index) => {
+                return (
+                  <p key={index} style={{ margin: 0 }}>Message from {display}: {data}</p>
+                );
+              })}
+            </div>
           </>
         )}
       </div>
