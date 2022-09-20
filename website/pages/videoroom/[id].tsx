@@ -215,7 +215,6 @@ const Room = () => {
     // TODO currently produces duplicate streams e.g. when updating streams (as they will be added to newPublishers and be ready for subscription, again)
 
     console.log("new publishers:", newPublishers);
-    // TODO Iterate over streams of new publisher(s)
 
     if (roomId && privateId.current && newPublishers.length > 0) {
       let streams: { feed: number; mid: string; }[] = [];
@@ -560,35 +559,6 @@ const Room = () => {
                       dispatch({ type: "add sub stream", mid: mid, stream: stream });
                     }
                   }
-
-                  // publisherHandle.current?.createOffer({
-                  //   media: {
-                  //     video: {
-                  //       deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
-                  //       width: 192,
-                  //       height: 144,
-                  //     },
-                  //     audio: true,
-                  //     data: true
-                  //   },
-                  //   success: (jsep: JanusJS.JSEP) => {
-                  //     // console.log("### JSEP ###", jsep.type, jsep.sdp)
-
-                  //     handleJsep(jsep);
-                  //     publisherHandle.current?.send({
-                  //       message: {
-                  //         request: "publish",
-                  //       },
-                  //       jsep: jsep,
-                  //     })
-                  //   },
-                  //   error: error => {
-                  //     // TODO Handle error
-                  //   },
-                  //   customizeSdp: jsep => {
-                  //     // TODO Modify original sdp if needed
-                  //   }
-                  // })
 
                   if (jsep) {
                     subscriberHandle.current?.createAnswer({
