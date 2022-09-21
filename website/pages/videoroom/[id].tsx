@@ -113,18 +113,22 @@ const Room = () => {
     })
 
     socket.on("switch-stream", (hostId: number, showAlt: boolean) => {
-      console.log("show alternative stream:", showAlt, hostId);
+      // console.log("show alternative stream:", showAlt, hostId);
 
       if (hostId == null) {
         return;
       }
 
       const hostVideoMid = state.feedStreams[hostId].streams
-        .find(stream => stream.type === "video" && showAlt ? stream.description !== "primary" : stream.description === "primary")
+        .find(stream => stream.type === "video" && (
+          showAlt ? stream.description !== "primary" : stream.description === "primary")
+        )
         ?.mid;
 
       const hostAudioMid = state.feedStreams[hostId].streams
-        .find(stream => stream.type === "audio" && showAlt ? stream.description !== "primary" : stream.description === "primary")
+        .find(stream => stream.type === "audio" && (
+          showAlt ? stream.description !== "primary" : stream.description === "primary")
+        )
         ?.mid;
 
       if (hostVideoMid == null || hostAudioMid == null) {
@@ -509,10 +513,10 @@ const Room = () => {
                   // nothing to expect here
                 },
                 ondataopen: (data: any) => {
-                  console.log("on publisher data open", data);
+                  // console.log("on publisher data open", data);
                 },
                 ondata: (data: any) => {
-                  console.log("on publisher data", data);
+                  // console.log("on publisher data", data);
                 },
                 oncleanup: () => {
                   // TODO clean UI
@@ -601,10 +605,10 @@ const Room = () => {
                   }
                 },
                 ondataopen: (data: any) => {
-                  console.log("on subscriber data open", data);
+                  // console.log("on subscriber data open", data);
                 },
                 ondata: (data: string, from: string) => {
-                  console.log(`Received data from ${from}:\n${data}`)
+                  // console.log(`Received data from ${from}:\n${data}`)
                   dispatch({ type: "add message", id: parseIntStrict(from), data: data })
                 },
               } as JanusJS.PluginOptions)
