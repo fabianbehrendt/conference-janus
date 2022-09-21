@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon --inspect server.js"
   },
   "author": "Fabian Behrendt",
   "license": "ISC",

@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useCallback, useRef, useState, useMemo, useReducer, Reducer, ReducerWithoutAction } from "react";
+import React, { useEffect, useCallback, useRef, useState, useMemo, useReducer } from "react";
 
 // @ts-ignore
 import { Janus } from 'janus-gateway';
@@ -69,8 +69,28 @@ const Room = () => {
   const router = useRouter();
   const socket = useSocket();
 
+  const parseIntStrict = useCallback((value: string) => {
+    if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
+      return Number(value);
+    return NaN;
+  }, []);
+
+  const roomId = useMemo(() => {
+    if (!router.isReady || typeof router.query.id !== "string")
+      return;
+
+    const id = parseIntStrict(router.query.id);
+
+    if (isNaN(id)) {
+      // TODO Handle room id not parseable
+      console.error("Room ID could not be parsed")
+    } else {
+      return id;
+    }
+  }, [router.isReady, router.query, parseIntStrict]);
+
   useEffect(() => {
-    if (socket == null) {
+    if (socket == null || roomId == null) {
       return;
     }
 
@@ -85,7 +105,7 @@ const Room = () => {
       }
 
       // TODO Necessary to leave here? Or should only leave on page reload / janus disconnect
-      socket.emit("leave", id.current);
+      socket.emit("leave", roomId, id.current);
     })
 
     socket.on("update-input", msg => {
@@ -99,11 +119,17 @@ const Room = () => {
         return;
       }
 
-      // TODO remove hard coded mid, replace with mid from feedStreams
-      const hostVideoStreams = state.feedStreams[hostId].streams
-        .filter(stream => stream.type === "video");
+      const hostVideoMid = state.feedStreams[hostId].streams
+        .find(stream => stream.type === "video" && showAlt ? stream.description !== "primary" : stream.description === "primary")
+        ?.mid;
 
-      console.log("host video streams", hostVideoStreams)
+      const hostAudioMid = state.feedStreams[hostId].streams
+        .find(stream => stream.type === "audio" && showAlt ? stream.description !== "primary" : stream.description === "primary")
+        ?.mid;
+
+      if (hostVideoMid == null || hostAudioMid == null) {
+        return;
+      }
 
       subscriberHandle.current?.send({
         message: {
@@ -111,12 +137,12 @@ const Room = () => {
           streams: [
             {
               feed: hostId,
-              mid: showAlt ? "2" : "0",
+              mid: hostAudioMid,
               sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "audio")?.mid,
             },
             {
               feed: hostId,
-              mid: showAlt ? "3" : "1",
+              mid: hostVideoMid,
               sub_mid: Object.values(state.subStreams).find(substream => substream.feed_id === hostId && substream.type === "video")?.mid,
             }
           ]
@@ -131,7 +157,7 @@ const Room = () => {
       socket.off("update-input");
       socket.off("switch-stream");
     }
-  }, [socket, state.feedStreams, state.subStreams]);
+  }, [roomId, socket, state.feedStreams, state.subStreams]);
 
   const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
     const { type, sdp } = jsep;
@@ -178,12 +204,6 @@ const Room = () => {
     }
   }, [handleJsep, waitingSDPs]);
 
-  const parseIntStrict = useCallback((value: string) => {
-    if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
-      return Number(value);
-    return NaN;
-  }, []);
-
   const unsubscribeFrom = useCallback((id: number) => {
     dispatch({ type: "remove feed stream", id: id });
     dispatch({ type: "remove remote stream", feedId: id });
@@ -195,21 +215,6 @@ const Room = () => {
       },
     });
   }, []);
-
-  const roomId = useMemo(() => {
-    if (!router.isReady || typeof router.query.id !== "string")
-      return;
-
-    const id = parseIntStrict(router.query.id);
-
-    if (isNaN(id)) {
-      // TODO Handle room id not parseable
-      console.error("Room ID could not be parsed")
-    } else {
-      return id;
-    }
-  }, [router.isReady, router.query, parseIntStrict]);
-
 
   useEffect(() => {
     // TODO currently produces duplicate streams e.g. when updating streams (as they will be added to newPublishers and be ready for subscription, again)
@@ -223,7 +228,7 @@ const Room = () => {
         streams = [
           ...streams,
           ...newPublisher.streams
-            .filter(stream => stream.description === "primary")
+            .filter(stream => stream.description === "primary" || stream.type === "data")
             .map(stream => ({ feed: newPublisher.id, mid: stream.mid }))
         ]
       }
@@ -235,8 +240,6 @@ const Room = () => {
         subscriberHandle.current?.send({
           message: {
             request: "subscribe",
-            // streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
-            //   .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
             streams: streams,
           }
         })
@@ -250,8 +253,6 @@ const Room = () => {
             ptype: "subscriber",
             room: roomId,
             private_id: privateId.current,
-            // streams: newPublishers.map(publisher => ({ feed: publisher.id, mid: "0" }))
-            //   .concat(newPublishers.map(publisher => ({ feed: publisher.id, mid: "1" }))),
             streams: streams,
           }
         })
@@ -265,15 +266,15 @@ const Room = () => {
 
   useEffect(() => {
     window.onbeforeunload = () => {
-      if (socket?.connected) {
-        socket.emit("leave", id.current);
+      if (socket?.connected && roomId != null) {
+        socket.emit("leave", roomId, id.current);
       }
     }
 
     return () => {
       window.onbeforeunload = () => { };
     }
-  }, [socket])
+  }, [roomId, socket])
 
   const initJanus = useCallback((displayName: string, isUserHost: boolean) => {
     Janus.init({
@@ -322,8 +323,8 @@ const Room = () => {
                     id.current = msg.id;
                     privateId.current = msg.private_id;
 
-                    if (socket?.connected) {
-                      socket.emit("join", id.current, isUserHost);
+                    if (socket?.connected && roomId != null) {
+                      socket.emit("join", roomId, id.current, isUserHost);
                     }
 
                     publisherHandle.current?.createOffer({
@@ -352,10 +353,10 @@ const Room = () => {
                                 mid: "1",
                                 description: "primary",
                               },
-                              {
-                                mid: "2",
-                                description: "primary",
-                              }
+                              // {
+                              //   mid: "4",
+                              //   description: "primary",
+                              // }
                             ],
                           },
                           jsep: jsep,
@@ -386,16 +387,16 @@ const Room = () => {
                           publisherHandle.current?.send({
                             message: {
                               request: "publish",
-                              descriptions: [
-                                {
-                                  mid: "0",
-                                  description: "alternative",
-                                },
-                                {
-                                  mid: "1",
-                                  description: "alternative",
-                                },
-                              ],
+                              // descriptions: [
+                              //   {
+                              //     mid: "2",
+                              //     description: "alternative",
+                              //   },
+                              //   {
+                              //     mid: "3",
+                              //     description: "alternative",
+                              //   },
+                              // ],
                             },
                             jsep: jsep,
                           })
@@ -472,8 +473,8 @@ const Room = () => {
                     } else if (msg.unpublished) {
                       if (msg.unpublished === "ok") {
                         // That's us
-                        if (socket?.connected) {
-                          socket.emit("leave", id.current);
+                        if (socket?.connected && roomId != null) {
+                          socket.emit("leave", roomId, id.current);
                         }
 
                         publisherHandle.current?.hangup();
@@ -849,7 +850,9 @@ const Room = () => {
                             marginLeft: "auto"
                           }}
                           onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                            socket?.emit("change-source", feedStream.id, event.target.checked)
+                            if (socket != null && roomId != null) {
+                              socket.emit("change-source", roomId, feedStream.id, event.target.checked)
+                            }
                           }}
                         />
                       </div>
