@@ -17,40 +17,6 @@ const Room = () => {
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
-  const [waitingSDPs, setWaitingSDPs] = useState<{
-    id: string,
-    offer: JanusJS.JSEP,
-    answer: JanusJS.JSEP | null,
-  }[]>([]);
-
-  // [
-  //   {
-  //     offer: jsep,
-  //     answer: jsep,
-  //   },
-  //   {
-  //     offer: jsep,
-  //     answer: jsep,
-  //   }
-  // ]
-
-  // Example offer 1
-  //
-  // v=0
-  // o=- 6603908741767771803 2 IN IP4 127.0.0.1           <-- Could be used as an id
-  // s=-
-  // t=0 0
-  // a=group:BUNDLE 0 1                                   <-- Could be used as an id
-  // a=extmap-allow-mixed
-
-  // Example offer 2
-  //
-  // v=0
-  // o=- 6603908741767771803 3 IN IP4 127.0.0.1           <-- Could be used as an id
-  // s=-
-  // t=0 0
-  // a=group:BUNDLE 0 1 2 3                               <-- Could be used as an id
-  // a=extmap-allow-mixed
 
   const [state, dispatch] = useReducer(reducer, {
     feedStreams: {},
@@ -187,51 +153,6 @@ const Room = () => {
     }
   }, [roomId, socket, state.feedStreams, state.subStreams]);
 
-  const handleJsep = useCallback((jsep: JanusJS.JSEP) => {
-    const { type, sdp } = jsep;
-
-    if (type == null || sdp == null) {
-      return;
-    }
-
-    const id = sdp.split("\r")[1].split(" ")[2];
-
-    setWaitingSDPs(prev => {
-      if (type === "offer") {
-        return [
-          ...prev,
-          {
-            id: id,
-            offer: jsep,
-            answer: null,
-          }
-        ];
-      }
-
-      for (let i = 0; i < prev.length; i++) {
-        if (prev[i].id === id && i === 0) {
-          const [firstWaitingSDP, ...restWaitingSDPs] = prev;
-          publisherHandle.current?.handleRemoteJsep({ jsep: jsep })
-
-          return restWaitingSDPs;
-        } else if (prev[i].id === id) {
-          const newWaitingSDPs = [...prev];
-          newWaitingSDPs[i].answer = jsep;
-
-          return newWaitingSDPs;
-        }
-      }
-
-      return prev;
-    })
-  }, []);
-
-  useEffect(() => {
-    if (waitingSDPs.length > 0 && waitingSDPs[0].answer != null) {
-      handleJsep(waitingSDPs[0].answer);
-    }
-  }, [handleJsep, waitingSDPs]);
-
   const unsubscribeFrom = useCallback((id: number) => {
     dispatch({ type: "remove feed stream", id: id });
     dispatch({ type: "remove remote stream", feedId: id });
@@ -247,7 +168,7 @@ const Room = () => {
   useEffect(() => {
     // TODO currently produces duplicate streams e.g. when updating streams (as they will be added to newPublishers and be ready for subscription, again)
 
-    console.log("new publishers:", newPublishers);
+    // console.log("new publishers:", newPublishers);
 
     if (roomId && privateId.current && newPublishers.length > 0) {
       let streams: { feed: number; mid: string; }[] = [];
@@ -261,8 +182,8 @@ const Room = () => {
         ]
       }
 
-      console.log("new streams:", streams);
-      console.log("publisher streams:", newPublishers.map(newPublisher => newPublisher.streams))
+      // console.log("new streams:", streams);
+      // console.log("publisher streams:", newPublishers.map(newPublisher => newPublisher.streams))
 
       if (hasSubscriberJoined) {
         subscriberHandle.current?.send({
@@ -290,7 +211,7 @@ const Room = () => {
     }
   }, [roomId, newPublishers, hasSubscriberJoined]);
 
-  const availableDevices = useRef<MediaDeviceInfo[]>();
+  const availableDevices = useRef<MediaDeviceInfo[]>([]);
 
   useEffect(() => {
     window.onbeforeunload = () => {
@@ -312,7 +233,13 @@ const Room = () => {
           // console.log("available devices:", devices.filter(device => device.kind === "videoinput"));
           // console.log("video id", devices.filter(device => device.kind === "videoinput")[0].deviceId)
 
+          // TODO Probably change to state
           availableDevices.current = devices;
+
+          console.log("available video devices:")
+          for (let i = 0; i < devices.filter(device => device.kind === "videoinput").length; i++) {
+            console.log(devices.filter(device => device.kind === "videoinput")[i].label)
+          }
 
           const opaqueId = `videoroom-${Janus.randomString(12)}`;
 
@@ -326,6 +253,7 @@ const Room = () => {
                   // TODO successfully attached
                   // console.log("attached to plugin echotest")
                   publisherHandle.current = pluginHandle;
+
                   publisherHandle.current.send({
                     message: {
                       request: "join",
@@ -355,20 +283,26 @@ const Room = () => {
                       socket.emit("join", roomId, id.current, isUserHost);
                     }
 
+                    const primaryTracks: JanusJS.TrackOffer[] = [
+                      { type: "audio", capture: true },
+                      { type: "video", capture: true },
+                      { type: "data" },
+                    ]
+
+                    const alternativeTracks: JanusJS.TrackOffer[] = [
+                      { type: "audio", capture: true },
+                      { type: "screen", capture: true },
+                    ]
+
                     publisherHandle.current?.createOffer({
-                      media: {
-                        video: {
-                          deviceId: devices.filter(device => device.kind === "videoinput")[0].deviceId,
-                          width: 192,
-                          height: 144,
-                        },
-                        audio: true,
-                        data: true,
-                      },
+                      tracks: isUserHost ? (
+                        [...primaryTracks, ...alternativeTracks]
+                      ) : (
+                        primaryTracks
+                      ),
                       success: (jsep: JanusJS.JSEP) => {
                         // console.log("### JSEP ###", jsep.type, jsep.sdp)
 
-                        handleJsep(jsep);
                         publisherHandle.current?.send({
                           message: {
                             request: "publish",
@@ -381,62 +315,18 @@ const Room = () => {
                                 mid: "1",
                                 description: "primary",
                               },
-                              // {
-                              //   mid: "4",
-                              //   description: "primary",
-                              // }
                             ],
                           },
                           jsep: jsep,
                         })
                       },
                       error: error => {
-                        // TODO Handle error
+                        // TODO handle error
                       },
                       customizeSdp: jsep => {
-                        // TODO Modify original sdp if needed
+                        // TODO customize sdp
                       }
                     })
-
-                    if (isUserHost) {
-                      publisherHandle.current?.createOffer({
-                        media: {
-                          video: {
-                            deviceId: devices.filter(device => device.kind === "videoinput")[1].deviceId,
-                            width: 192,
-                            height: 144,
-                          },
-                          audio: true,
-                        },
-                        success: (jsep: JanusJS.JSEP) => {
-                          // console.log("### JSEP ###", jsep.type, jsep.sdp)
-
-                          handleJsep(jsep)
-                          publisherHandle.current?.send({
-                            message: {
-                              request: "publish",
-                              // descriptions: [
-                              //   {
-                              //     mid: "2",
-                              //     description: "alternative",
-                              //   },
-                              //   {
-                              //     mid: "3",
-                              //     description: "alternative",
-                              //   },
-                              // ],
-                            },
-                            jsep: jsep,
-                          })
-                        },
-                        error: error => {
-                          // TODO Handle error
-                        },
-                        customizeSdp: (jsep: JanusJS.JSEP) => {
-                          // TODO Modify original sdp if needed
-                        }
-                      })
-                    }
 
                     if (msg.publishers) {
                       setNewPublishers(prev => [...prev, ...msg.publishers]);
@@ -512,12 +402,9 @@ const Room = () => {
                     }
                   }
 
-                  // TODO message / event received
-                  // TODO if jsep not null, WebRTC negotiation
                   if (jsep) {
                     // console.log("### handle remote JSEP ###", jsep.type, jsep.sdp)
-                    handleJsep(jsep)
-                    // publisherHandle.current.handleRemoteJsep({ jsep: jsep })
+                    publisherHandle.current?.handleRemoteJsep({ jsep: jsep })
                   }
                 },
                 onlocaltrack: (track, added) => {
@@ -593,9 +480,12 @@ const Room = () => {
                     subscriberHandle.current?.createAnswer({
                       // We attach the remote OFFER
                       jsep: jsep,
-                      media: {
-                        data: true,
-                      },
+                      // media: {
+                      //   data: true,
+                      // },
+                      tracks: [
+                        { type: "data" }
+                      ],
                       success: (ourjsep: JanusJS.JSEP) => {
                         subscriberHandle.current?.send({
                           message: {
@@ -649,7 +539,7 @@ const Room = () => {
         });
       }
     })
-  }, [roomId, socket, handleJsep, unsubscribeFrom, parseIntStrict]);
+  }, [roomId, socket, unsubscribeFrom, parseIntStrict]);
 
   const localVideos = useMemo(() => {
     return Object.values(state.localStreams)
@@ -846,8 +736,15 @@ const Room = () => {
               </button>
               <button
                 onClick={() => {
-                  subscriberHandle.current?.hangup();
-                  publisherHandle.current?.hangup();
+                  publisherHandle.current?.send({
+                    message: {
+                      request: "unpublish"
+                    }
+                  })
+
+                  // TODO hangup throws error, maybe updating to future version of janus.js will fix this
+                  // publisherHandle.current?.hangup();
+                  // subscriberHandle.current?.hangup();
                   router.push("/videoroom");
                 }}
               >

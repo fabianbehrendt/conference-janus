@@ -112,7 +112,13 @@ declare namespace JanusJS {
     opaqueId?: string;
   }
 
+  interface TrackOffer {
+    type: "audio" | "video" | "screen" | "data";
+    capture?: boolean;
+  }
+
   interface OfferParams {
+    tracks?: TrackOffer[],
     media?: {
       audioSend?: boolean;
       audioRecv?: boolean;
