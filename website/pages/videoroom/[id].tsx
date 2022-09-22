@@ -9,6 +9,8 @@ import Layout from "../../components/Layout";
 import { Publisher, PublisherStream, SubscriberStream } from "../../interfaces/janus";
 import { useSocket } from "../../contexts/SocketProvider";
 import reducer from "../../reducers/janus";
+import VideoFrame from "../../components/VideoFrame";
+import VideoGrid from "../../components/VideoGrid";
 
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
@@ -68,6 +70,28 @@ const Room = () => {
 
   const router = useRouter();
   const socket = useSocket();
+
+  const gridColumns: number = useMemo(() => {
+    let numOfRemoteStreams = Object.keys(state.remoteStreams).length;
+
+    if (numOfRemoteStreams < 3) {
+      return numOfRemoteStreams;
+    } else {
+      return Math.ceil(Math.sqrt(numOfRemoteStreams));
+    }
+  }, [state.remoteStreams]);
+
+  const gridRows: number = useMemo(() => {
+    let numOfRemoteStreams = Object.keys(state.remoteStreams).length;
+
+    if (numOfRemoteStreams === 0) {
+      return 0;
+    } else if (numOfRemoteStreams < 3) {
+      return 1;
+    } else {
+      return Math.ceil(Math.sqrt(numOfRemoteStreams));
+    }
+  }, [state.remoteStreams]);
 
   const parseIntStrict = useCallback((value: string) => {
     if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
@@ -633,9 +657,9 @@ const Room = () => {
       .map((stream, idx) => (
         <div
           key={stream.id}
-          style={{ display: "flex", position: "relative", boxSizing: "border-box" }}
+          style={{ display: "flex", position: "relative", boxSizing: "border-box", width: 192, height: 144 }}
         >
-          <video
+          {/* <video
             autoPlay
             playsInline
             muted
@@ -646,6 +670,11 @@ const Room = () => {
               if (ref)
                 ref.srcObject = stream;
             }}
+          /> */}
+          <VideoFrame
+            stream={stream}
+            muted
+            mirror
           />
           <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
             {`${Object.values(state.feedStreams).find(feedStream => feedStream.id === id.current)?.display} ${isHost ? idx + 1 : ""}`}
@@ -673,19 +702,11 @@ const Room = () => {
               }}
             />
             <div
-              style={{ display: "flex", position: "relative" }}
+              style={{ display: "flex", position: "relative", width: 320, height: 240 }}
             >
-              <video
-                autoPlay
-                playsInline
-                style={{ border: "1px solid black" }}
-                width={320}
-                height={240}
-                ref={ref => {
-                  if (ref) {
-                    ref.srcObject = streams.video;
-                  }
-                }}
+              <VideoFrame
+                stream={streams.video}
+                muted
               />
               <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
                 {Object.values(state.feedStreams).find(feedStream => feedStream.id.toString() === feedId)?.display}
@@ -864,6 +885,15 @@ const Room = () => {
                 </div>
               </>
             )}
+            {
+              // TODO VideoGrid not working as expected -> Maybe do other Layout first, then try VideoGrid
+            }
+            {/* <VideoGrid
+              columns={gridColumns}
+              rows={gridRows}
+            >
+              {remoteElements}
+            </VideoGrid> */}
             {remoteElements}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {state.messages.map(({ display, data }, index) => {
