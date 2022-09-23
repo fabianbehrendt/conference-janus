@@ -1,18 +1,16 @@
 import { Publisher, PublisherStream, SubscriberStream } from "../interfaces/janus";
 
 interface IReducerState {
-  // feedStreams: { [id: number]: Omit<Publisher, "streams"> & { streams: PublisherStream[] & { id: number, display: string }[] } };
   feedStreams: { [id: number]: Publisher & { streams: { id: number; display: string; }[] } };
   subStreams: { [mid: number]: SubscriberStream; };
-  localTracks: MediaStreamTrack[];
-  localStreams: { [id: string]: MediaStream };
+  localTracks: { [mid: number]: MediaStreamTrack };
   remoteTracks: { [mid: number]: MediaStreamTrack };
   remoteStreams: { [id: number]: { audio: MediaStream, video: MediaStream } };
   messages: { display: string, data: string }[];
 }
 
 interface IReducerAction {
-  type: "add feed stream" | "remove feed stream" | "add sub stream" | "remove sub stream" | "add local track" | "remove local track" | "add local stream" | "remove local stream" | "add remote track" | "remove remote track" | "add remote stream" | "remove remote stream" | "add message";
+  type: "add feed stream" | "remove feed stream" | "add sub stream" | "remove sub stream" | "add local track" | "remove local track" | "add remote track" | "remove remote track" | "add remote stream" | "remove remote stream" | "add message";
   id?: number;
   display?: string;
   streams?: PublisherStream[];
@@ -86,51 +84,39 @@ const reducer = (state: IReducerState, action: IReducerAction): IReducerState =>
         throw new Error("track is missing");
       }
 
+      const missingMid = Object.keys(state.localTracks).findIndex((key, idx) => key.toString() !== idx.toString());
+
       return {
         ...state,
-        localTracks: [
+        localTracks: {
           ...state.localTracks,
-          action.track,
-        ],
+          [missingMid === -1 ? Object.keys(state.localTracks).length : missingMid]: action.track,
+        }
+        // localTracks: [
+        //   ...state.localTracks,
+        //   action.track,
+        // ],
       };
     case "remove local track":
       if (action.track == null) {
         throw new Error("track is missing");
       }
 
-      return {
-        ...state,
-        localTracks: state.localTracks.filter(track => {
-          if (track.id !== action.track!.id) {
-            return true;
-          } else {
-            track.stop();
-            return false;
-          }
-        }),
-      };
-    case "add local stream":
-      if (action.track == null) {
-        throw new Error("track is missing");
-      }
+      const indexOfTrack = Object.values(state.localTracks).findIndex(track => track.id === action.track?.id);
+
+      const { [indexOfTrack]: removedTrack, ...restLocalTracks } = state.localTracks;
 
       return {
         ...state,
-        localStreams: {
-          ...state.localStreams,
-          [action.track.id]: new MediaStream([action.track.clone()]),
-        },
-      };
-    case "remove local stream":
-      if (action.track == null) {
-        throw new Error("track is missing");
-      }
-
-      const { [action.track.id]: localStreamToRemove, ...restLocalStreams } = state.localStreams;
-
-      return {
-        ...state,
-        localStreams: restLocalStreams,
+        localTracks: restLocalTracks,
+        // localTracks: state.localTracks.filter(track => {
+        //   if (track.id !== action.track!.id) {
+        //     return true;
+        //   } else {
+        //     track.stop();
+        //     return false;
+        //   }
+        // }),
       };
     case "add remote track":
       if (action.mid == null || action.track == null) {

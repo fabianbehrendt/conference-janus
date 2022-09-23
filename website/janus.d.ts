@@ -112,13 +112,14 @@ declare namespace JanusJS {
     opaqueId?: string;
   }
 
-  interface TrackOffer {
+  interface Track {
     type: "audio" | "video" | "screen" | "data";
-    capture?: boolean;
+    mid?: string;
+    capture?: boolean | { deviceId: { exact: string } };
   }
 
   interface OfferParams {
-    tracks?: TrackOffer[],
+    tracks?: Track[],
     media?: {
       audioSend?: boolean;
       audioRecv?: boolean;
@@ -212,6 +213,7 @@ declare namespace JanusJS {
     createOffer(params: OfferParams): void;
     createAnswer(params: any): void;
     handleRemoteJsep(params: { jsep: JSEP }): void;
+    replaceTracks(paramy: {tracks: Track[]; success?: () => void; error?: (err: any) => void}): void;
     dtmf(params: any): void;
     data(params: any): void;
     isAudioMuted(mid?: string): boolean;

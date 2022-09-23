@@ -17,12 +17,12 @@ const Room = () => {
   const [hasSubscriberJoined, setHasSubscriberJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>();
 
   const [state, dispatch] = useReducer(reducer, {
     feedStreams: {},
     subStreams: {},
-    localTracks: [],
-    localStreams: {},
+    localTracks: {},
     remoteTracks: {},
     remoteStreams: {},
     messages: [],
@@ -211,8 +211,6 @@ const Room = () => {
     }
   }, [roomId, newPublishers, hasSubscriberJoined]);
 
-  const availableDevices = useRef<MediaDeviceInfo[]>([]);
-
   useEffect(() => {
     window.onbeforeunload = () => {
       if (socket?.connected && roomId != null) {
@@ -230,16 +228,7 @@ const Room = () => {
       debug: false,
       callback: () => {
         Janus.listDevices((devices: MediaDeviceInfo[]) => {
-          // console.log("available devices:", devices.filter(device => device.kind === "videoinput"));
-          // console.log("video id", devices.filter(device => device.kind === "videoinput")[0].deviceId)
-
-          // TODO Probably change to state
-          availableDevices.current = devices;
-
-          console.log("available video devices:")
-          for (let i = 0; i < devices.filter(device => device.kind === "videoinput").length; i++) {
-            console.log(devices.filter(device => device.kind === "videoinput")[i].label)
-          }
+          setAvailableDevices(devices);
 
           const opaqueId = `videoroom-${Janus.randomString(12)}`;
 
@@ -283,13 +272,13 @@ const Room = () => {
                       socket.emit("join", roomId, id.current, isUserHost);
                     }
 
-                    const primaryTracks: JanusJS.TrackOffer[] = [
+                    const primaryTracks: JanusJS.Track[] = [
                       { type: "audio", capture: true },
                       { type: "video", capture: true },
                       { type: "data" },
                     ]
 
-                    const alternativeTracks: JanusJS.TrackOffer[] = [
+                    const alternativeTracks: JanusJS.Track[] = [
                       { type: "audio", capture: true },
                       { type: "screen", capture: true },
                     ]
@@ -413,11 +402,9 @@ const Room = () => {
                   if (added) {
                     // console.log("local track added", track)
                     dispatch({ type: "add local track", track: track });
-                    dispatch({ type: "add local stream", track: track });
                   } else {
                     // console.log("local track removed", track)
                     dispatch({ type: "remove local track", track: track });
-                    dispatch({ type: "remove local stream", track: track });
                   }
                 },
                 onremotetrack: (track, mid, added) => {
@@ -542,36 +529,77 @@ const Room = () => {
   }, [roomId, socket, unsubscribeFrom, parseIntStrict]);
 
   const localVideos = useMemo(() => {
-    return Object.values(state.localStreams)
-      .filter((stream) => stream.getTracks()[0].kind === "video")
-      .map((stream, idx) => (
+    return Object.values(state.localTracks)
+      .filter(track => track.kind === "video")
+      .map((track, idx) => (
         <div
-          key={stream.id}
-          style={{ display: "flex", position: "relative", boxSizing: "border-box", width: 192, height: 144 }}
+          key={track.id}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
         >
-          {/* <video
-            autoPlay
-            playsInline
-            muted
-            style={{ border: "1px solid black" }}
-            width={192}
-            height={144}
-            ref={ref => {
-              if (ref)
-                ref.srcObject = stream;
-            }}
-          /> */}
-          <VideoFrame
-            stream={stream}
-            muted
-            mirror
-          />
-          <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
-            {`${Object.values(state.feedStreams).find(feedStream => feedStream.id === id.current)?.display} ${isHost ? idx + 1 : ""}`}
-          </p>
+          <div
+            style={{ display: "flex", position: "relative", width: 192, height: 144 }}
+          >
+            <VideoFrame
+              stream={new MediaStream([track])}
+              muted
+              mirror={!track.label.includes("screen")}
+            />
+            <p style={{ position: "absolute", left: 0, bottom: 0, margin: 0, padding: "4px 4px", background: "black", color: "white", opacity: "75%", borderRadius: "4px" }}>
+              {`${Object.values(state.feedStreams).find(feedStream => feedStream.id === id.current)?.display} ${isHost ? idx + 1 : ""}`}
+            </p>
+          </div>
+          {
+            // Selection with available devices
+          }
+          {availableDevices != null && (
+            <select
+              value={track.label.includes("screen") ? "screen" : availableDevices.find(device => device.label === track.label)?.label}
+              onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
+                if (id.current == null) {
+                  return;
+                }
+
+                const value = event.target.value;
+
+                const currentVideoMid = state.feedStreams[id.current].streams
+                  .filter(stream => stream.type === "video")[idx]
+                  ?.mid;
+
+                if (currentVideoMid == null) {
+                  return;
+                }
+
+                dispatch({ type: "remove local track", track: state.localTracks[parseIntStrict(currentVideoMid)] })
+
+                const videoTrack: JanusJS.Track = {
+                  type: value === "screen" ? "screen" : "video",
+                  mid: currentVideoMid,
+                  capture: value === "screen" ? true : { deviceId: { exact: value } },
+                }
+
+                publisherHandle.current?.replaceTracks({
+                  tracks: [
+                    videoTrack
+                  ],
+                  success: () => {
+                    // console.log("successfully replaced track")
+                  },
+                  error: err => {
+                    console.log("error", err)
+                  }
+                })
+              }}
+            >
+              {availableDevices
+                .filter(device => device.kind === "videoinput")
+                .map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}
+              <option value="screen">Screenshare</option>
+            </select>
+          )}
         </div>
       ))
-  }, [isHost, state.feedStreams, state.localStreams]);
+
+  }, [availableDevices, isHost, parseIntStrict, state.feedStreams, state.localTracks]);
 
   const remoteElements = useMemo(() => {
     const elements = Object.entries(state.remoteStreams)
@@ -584,7 +612,6 @@ const Room = () => {
             <audio
               autoPlay
               hidden
-              playsInline
               ref={ref => {
                 if (ref) {
                   ref.srcObject = streams.audio;
@@ -735,6 +762,10 @@ const Room = () => {
                 Toggle Audio
               </button>
               <button
+                // TODO hangup throws error, maybe updating to future version of janus.js will fix this
+                // publisherHandle.current?.hangup();
+                // subscriberHandle.current?.hangup();
+
                 onClick={() => {
                   publisherHandle.current?.send({
                     message: {
@@ -742,9 +773,6 @@ const Room = () => {
                     }
                   })
 
-                  // TODO hangup throws error, maybe updating to future version of janus.js will fix this
-                  // publisherHandle.current?.hangup();
-                  // subscriberHandle.current?.hangup();
                   router.push("/videoroom");
                 }}
               >
