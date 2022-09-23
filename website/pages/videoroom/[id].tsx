@@ -11,6 +11,7 @@ import { useSocket } from "../../contexts/SocketProvider";
 import reducer from "../../reducers/janus";
 import VideoFrame from "../../components/VideoFrame";
 import VideoGrid from "../../components/VideoGrid";
+import { parseIntStrict } from "../../utils/parseIntStrict";
 
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
@@ -18,6 +19,7 @@ const Room = () => {
   const [userName, setUserName] = useState("");
   const [isHost, setIsHost] = useState(false);
   const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>();
+  const [room, setRoom] = useState<JanusJS.Room>();
 
   const [state, dispatch] = useReducer(reducer, {
     feedStreams: {},
@@ -59,12 +61,6 @@ const Room = () => {
     }
   }, [state.remoteStreams]);
 
-  const parseIntStrict = useCallback((value: string) => {
-    if (/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
-      return Number(value);
-    return NaN;
-  }, []);
-
   const roomId = useMemo(() => {
     if (!router.isReady || typeof router.query.id !== "string")
       return;
@@ -77,7 +73,7 @@ const Room = () => {
     } else {
       return id;
     }
-  }, [router.isReady, router.query, parseIntStrict]);
+  }, [router.isReady, router.query]);
 
   useEffect(() => {
     if (socket == null || roomId == null) {
@@ -225,7 +221,7 @@ const Room = () => {
 
   const initJanus = useCallback((displayName: string, isUserHost: boolean) => {
     Janus.init({
-      debug: false,
+      debug: true,
       callback: () => {
         Janus.listDevices((devices: MediaDeviceInfo[]) => {
           setAvailableDevices(devices);
@@ -242,6 +238,25 @@ const Room = () => {
                   // TODO successfully attached
                   // console.log("attached to plugin echotest")
                   publisherHandle.current = pluginHandle;
+
+                  publisherHandle.current.send({
+                    message: {
+                      request: "list",
+                    },
+                    success: (msg: { list: JanusJS.Room[], videoroom: "success" | "event", error_code?: number, error?: string }) => {
+                      const event = msg.videoroom;
+
+                      if (event === "success") {
+                        const currentRoom = msg.list.find(room => room.room === roomId);
+
+                        if (currentRoom == null) {
+                          return;
+                        }
+
+                        setRoom(currentRoom);
+                      }
+                    }
+                  })
 
                   publisherHandle.current.send({
                     message: {
@@ -526,7 +541,7 @@ const Room = () => {
         });
       }
     })
-  }, [roomId, socket, unsubscribeFrom, parseIntStrict]);
+  }, [roomId, socket, unsubscribeFrom]);
 
   const localVideos = useMemo(() => {
     return Object.values(state.localTracks)
@@ -599,7 +614,7 @@ const Room = () => {
         </div>
       ))
 
-  }, [availableDevices, isHost, parseIntStrict, state.feedStreams, state.localTracks]);
+  }, [availableDevices, isHost, state.feedStreams, state.localTracks]);
 
   const remoteElements = useMemo(() => {
     const elements = Object.entries(state.remoteStreams)
@@ -642,7 +657,7 @@ const Room = () => {
 
   return (
     <Layout>
-      <h1 style={{ textAlign: "center" }}>Room {roomId}</h1>
+      <h1 style={{ textAlign: "center" }}>{room?.description}</h1>
       <button
         onClick={() => {
           if (socket?.connected) {

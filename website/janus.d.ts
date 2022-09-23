@@ -37,6 +37,37 @@ declare namespace JanusJS {
     dependencies?: DependenciesResult;
   }
 
+  interface Room {
+    room: number;
+    description: string;
+    pin_required: boolean;
+    is_private: boolean;
+    max_publishers: number;
+    bitrate: number;
+    fir_freq: number;
+    require_pvtid: boolean;
+    require_e2ee: boolean;
+    dummy_publisher: boolean;
+    notify_joining: boolean;
+    audiocodec: string;
+    videocodec: string;
+    record: boolean;
+    lock_record: boolean;
+    num_participants: number;
+    audiolevel_ext: boolean;
+    audiolevel_event: boolean;
+    videoorient_ext: boolean;
+    playoutdelay_ext: boolean;
+    transport_wide_cc_ext: boolean;
+    bitrate_cap?: boolean;
+    opus_fec?: boolean;
+    opus_dtx?: boolean;
+    video_svc?: boolean;
+    rec_dir?: string;
+    audio_active_packets?: number;
+    audio_level_average?: number;
+  }
+
   interface ConstructorOptions {
     server: string | string[];
     iceServers?: RTCIceServer[];
@@ -213,7 +244,7 @@ declare namespace JanusJS {
     createOffer(params: OfferParams): void;
     createAnswer(params: any): void;
     handleRemoteJsep(params: { jsep: JSEP }): void;
-    replaceTracks(paramy: {tracks: Track[]; success?: () => void; error?: (err: any) => void}): void;
+    replaceTracks(paramy: { tracks: Track[]; success?: () => void; error?: (err: any) => void }): void;
     dtmf(params: any): void;
     data(params: any): void;
     isAudioMuted(mid?: string): boolean;
