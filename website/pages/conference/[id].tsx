@@ -7,8 +7,6 @@ import styles from "../../styles/ConferenceRoom.module.css";
 import { Janus } from 'janus-gateway';
 import { JanusJS } from "../../janus";
 
-import randomColor from "randomcolor";
-
 import Icon from "@mdi/react";
 import {
   mdiMicrophone,
@@ -16,7 +14,6 @@ import {
   mdiVideo,
   mdiVideoOff,
   mdiCog,
-  mdiAccount,
   mdiPhoneHangup,
   mdiMessage,
   mdiVideoSwitch,
