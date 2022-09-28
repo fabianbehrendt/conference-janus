@@ -188,7 +188,7 @@ const Room = () => {
     }
 
     socket.on("connect", () => {
-      console.log("connected to socket")
+      // console.log("connected to socket")
       setIsSocketConnected(true);
     })
 
@@ -271,7 +271,7 @@ const Room = () => {
   useEffect(() => {
     // TODO currently produces duplicate streams e.g. when updating streams (as they will be added to newPublishers and be ready for subscription, again)
 
-    if (room == null || pin == null || privateId.current == null || newPublishers.length === 0) {
+    if (room == null || privateId.current == null || newPublishers.length === 0) {
       return;
     }
     let streams: { feed: number; mid: string; }[] = [];
@@ -303,7 +303,7 @@ const Room = () => {
           room: room.room,
           private_id: privateId.current,
           streams: streams,
-          pin: pin,
+          pin: pin == null ? "" : pin,
         }
       })
 
