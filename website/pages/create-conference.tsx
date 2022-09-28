@@ -16,6 +16,8 @@ const CreateConference = () => {
   const [rooms, setRooms] = useState<JanusJS.Room[]>();
   const [users, setUsers] = useState<{ [room: number]: number }>({});
   const [createRoomName, setCreateRoomName] = useState("");
+  const [hostSecret, setHostSecret] = useState("");
+  const [pin, setPin] = useState("");
 
   const plugin = useRef<JanusJS.PluginHandle>();
 
@@ -90,6 +92,8 @@ const CreateConference = () => {
                 message: {
                   request: "destroy",
                   room: room.room,
+                  permanent: true,
+                  secret: hostSecret,
                 },
                 success: result => {
                   getRooms();
@@ -103,7 +107,7 @@ const CreateConference = () => {
               color="var(--red)"
             />
           </div>
-          <Link key={id} href={`/videoroom/${id}`}>
+          <Link key={id} href={`/conference/${id}`}>
             {room.description}
           </Link>
           <p>|</p>
@@ -111,30 +115,56 @@ const CreateConference = () => {
         </div>
       )
     })
-  }, [getRooms, rooms, users]);
+  }, [getRooms, hostSecret, rooms, users]);
 
   return (
     <Layout>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: 8 }}>
         <form
+          style={{
+            display: "flex",
+            gap: 8,
+          }}
           onSubmit={event => {
             event.preventDefault();
 
             plugin.current?.send({
               message: {
                 request: "create",
+                permanent: true,
                 description: createRoomName,
+                publishers: 33,
+                secret: hostSecret,
+                pin: pin,
+
               },
               success: result => {
                 // setCreateRoomName("");
                 // getRooms();
-                router.push(`/conference-details/${result.room}`)
+                router.push(`/conference-details/${result.room}?pin=${pin}&secret=${hostSecret}`)
               }
             })
           }}
         >
-          <input type="text" value={createRoomName} onChange={event => setCreateRoomName(event.currentTarget.value)} />
-          <button type="submit">Create Room</button>
+          <input
+            type="text"
+            placeholder="Raumnamen eingeben"
+            value={createRoomName}
+            onChange={event => setCreateRoomName(event.currentTarget.value)}
+          />
+          <input
+            type="text"
+            placeholder="Raumpasswort eingeben"
+            value={pin}
+            onChange={event => setPin(event.currentTarget.value)}
+          />
+          <input
+            type="text"
+            placeholder="Host PIN eingeben"
+            value={hostSecret}
+            onChange={event => setHostSecret(event.currentTarget.value)}
+          />
+          <button type="submit">Raum erstellen</button>
         </form>
         {roomList}
       </div>

@@ -4,3 +4,19 @@
   --primary: #EC5464;
   --secondary: #F9B8BE;
 }
+
+.black {
+  color: var(--black);
+}
+
+.red {
+  color: var(--red);
+}
+
+.primary {
+  color: var(--primary);
+}
+
+.secondary {
+  color: var(--secondary);
+}

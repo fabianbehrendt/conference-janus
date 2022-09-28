@@ -1,0 +1,134 @@
+.userNameContainer {
+  box-sizing: border-box;
+  max-width: 480px;
+  flex: 1;
+  background: var(--black);
+  padding: 32px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  justify-content: center;
+}
+
+.userNameContainer h1 {
+  text-align: center;
+  color: white;
+}
+
+.userNameContainer h2 {
+  text-align: center;
+  color: white;
+}
+
+.enterUserNameStartUp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.enterUserNameStartUp input {
+  text-align: center;
+}
+
+.toolbarStartUp {
+  display: flex;
+  justify-content: space-between;
+  width: 40%;
+  align-self: center;
+}
+
+.hostButtonsSwitchStream {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.hostButtonsSwitchStream button {
+  background: white;
+  color: var(--black);
+}
+
+.hostButtonSelected {
+  background: var(--primary) !important;
+  color: white !important;
+}
+
+.settingsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+
+  padding: 32px;
+  border-radius: 8px;
+
+  background: var(--black);
+}
+
+.settingsStream {
+  display: flex;
+  gap: 32px;
+}
+
+.settingsVideoFrame {
+  aspect-ratio: 4/3;
+  width: clamp(200px, 30vw, 600px);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settingsOptionsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: clamp(200px, 20vw, 500px);
+}
+
+.settingsOptionsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settingsButtons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settingsButtonCancel {
+  background: var(--primary);
+}
+
+.settingsButtonCancel:hover {
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+.settingsButtonSubmit:hover {
+  background: var(--primary);
+  color: var(--red);
+}
+
+.roomControlsContainer {
+  position: fixed;
+  bottom: 0px;
+  left: 50%;
+  translate: -50%;
+}
+
+.roomControls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  position: relative;
+  bottom: 8px;
+
+  transition: translate 0.5s ease;
+
+  padding: 12px;
+  background: var(--black);
+  border: 1px outset var(--secondary);
+  border-radius: 8px;
+}

@@ -8,7 +8,7 @@ const Home = () => {
       <div className={styles.navLinks}>
         <Link href="/echotest">Echo Test</Link>
         <Link href="/videocall">Video Call</Link>
-        <Link href="/videoroom">Video Room</Link>
+        <Link href="/create-conference">Video Room</Link>
       </div>
     </Layout>
   )

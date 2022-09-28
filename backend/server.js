@@ -23,11 +23,6 @@ router.get('/', (req, res) => {
 });
 
 io.on('connection', socket => {
-  socket.on('input-change', msg => {
-    // socket.broadcast.emit('update-input', 'Hello Socket');
-    socket.emit('update-input', 'Hello Socket')
-  })
-
   socket.on('join', (roomId, userId, isHost) => {
     if (userId == null || roomId == null) {
       return;
@@ -67,7 +62,7 @@ io.on('connection', socket => {
   })
 
   socket.on('leave', (roomId, userId) => {
-    if (userId == null) {
+    if (userId == null || rooms[roomId] == null) {
       return;
     }
 
@@ -93,6 +88,10 @@ io.on('connection', socket => {
   })
 
   socket.on('change-source', (roomId, userId, showAlt) => {
+    if (rooms[roomId] == null) {
+      return;
+    }
+
     const targetConnectionId = rooms[roomId].users
       .find(user => user.janusId === userId)
       .socketId;

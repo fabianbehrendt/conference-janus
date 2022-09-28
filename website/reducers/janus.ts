@@ -6,7 +6,7 @@ interface IReducerState {
   localTracks: { [mid: number]: MediaStreamTrack };
   remoteTracks: { [mid: number]: MediaStreamTrack };
   remoteStreams: { [id: number]: { audio: MediaStream, video: MediaStream } };
-  messages: { display: string, data: string }[];
+  messages: { timestamp: string, id: number, display: string, data: string }[];
 }
 
 interface IReducerAction {
@@ -19,6 +19,7 @@ interface IReducerAction {
   track?: MediaStreamTrack;
   feedId?: number;
   data?: string;
+  showNotification?: () => void;
 }
 
 const reducer = (state: IReducerState, action: IReducerAction): IReducerState => {
@@ -175,14 +176,18 @@ const reducer = (state: IReducerState, action: IReducerAction): IReducerState =>
       };
     case "add message":
       if (action.id == null || action.data == null) {
-        throw new Error("id or data is missing");
+        throw new Error("id, data or display is missing");
       }
+
+      action.showNotification && action.showNotification();
 
       return {
         ...state,
         messages: [
           ...state.messages,
           {
+            timestamp: new Date().toISOString(),
+            id: action.id,
             display: state.feedStreams[action.id].display,
             data: action.data,
           },

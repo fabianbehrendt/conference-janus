@@ -16,6 +16,7 @@ const VideoFrame: React.FunctionComponent<IVideoFrame> = props => {
   const videoDiv = useRef<HTMLDivElement>();
   const video = useRef<HTMLVideoElement>();
 
+  const muted = useMemo(() => props.muted || false, [props.muted]);
   const mirror = useMemo(() => props.mirror || false, [props.mirror]);
 
   useEffect(() => {
@@ -61,7 +62,7 @@ const VideoFrame: React.FunctionComponent<IVideoFrame> = props => {
       <video
         autoPlay
         playsInline
-        muted={props.muted}
+        muted={muted}
         ref={ref => {
           if (ref && props.stream && ref.srcObject !== props.stream) {
             ref.srcObject = props.stream;
@@ -96,9 +97,5 @@ const VideoFrame: React.FunctionComponent<IVideoFrame> = props => {
     </div>
   );
 };
-
-VideoFrame.defaultProps = {
-  muted: false,
-}
 
 export default VideoFrame;
