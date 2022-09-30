@@ -5,6 +5,8 @@ interface ISocketProvider {
   children: React.ReactNode;
 }
 
+const URL_WEBSOCKET_SERVER = "wss://app.fabianbehrendt.de";
+
 const SocketContext = React.createContext<undefined | Socket>(undefined);
 
 const useSocket = () => {
@@ -16,7 +18,8 @@ const SocketProvider: React.FunctionComponent<ISocketProvider> = props => {
 
   useEffect(() => {
     const newSocket = io(
-      process.env.NODE_ENV === "development" ? "ws://localhost:3000" : "wss://app.fabianbehrendt.de",
+      process.env.NODE_ENV === "development" ? "ws://localhost:3000" : URL_WEBSOCKET_SERVER,
+      // path is used to be able to run both, janus api and websocket server, over same (sub)domain
       { path: "/socket/socket.io", }
     );
 

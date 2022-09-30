@@ -11,6 +11,8 @@ import { mdiDelete } from "@mdi/js";
 import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
 
+const REC_DIR = "/home/fabian/janus-recordings/";
+
 const CreateConference = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
   const [rooms, setRooms] = useState<JanusJS.Room[]>();
@@ -137,7 +139,7 @@ const CreateConference = () => {
                 secret: hostSecret,
                 pin: pin,
                 record: true,
-                rec_dir: "/home/fabian/janus-recordings/",
+                rec_dir: REC_DIR,
                 lock_record: true,
 
               },

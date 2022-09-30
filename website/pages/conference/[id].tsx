@@ -33,6 +33,9 @@ import { useAppHeight } from "../../contexts/AppHeightProvider";
 import VideoElement from "../../components/VideoElement";
 import Avatar from "../../components/Avatar";
 
+// URL where Janus server is reachable
+const JANUS_SERVER_URL = "wss://janus.fabianbehrendt.de";
+
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
   const [hasPublisherJoined, setHasPublisherJoined] = useState<boolean>(false);
@@ -374,9 +377,13 @@ const Room = () => {
       setPin(userPin);
     }
 
+    // Initialize Janus object to handle connections
+
     Janus.init({
       debug: false,
       callback: () => {
+        // List and store available media devices
+        
         Janus.listDevices((devices: MediaDeviceInfo[]) => {
           setAvailableDevices(devices);
 
@@ -404,9 +411,13 @@ const Room = () => {
 
           const opaqueId = `videoroom-${Janus.randomString(12)}`;
 
+          // Connect to Janus Backend
+
           const janus = new Janus({
-            server: "wss://janus.fabianbehrendt.de",
+            server: JANUS_SERVER_URL,
             success: () => {
+              // Attach as a publisher to the VideoRoom Plugin
+              
               janus.attach({
                 plugin: "janus.plugin.videoroom",
                 opaqueId: opaqueId,
@@ -613,6 +624,8 @@ const Room = () => {
                   // TODO connection closed
                 },
               } as JanusJS.PluginOptions);
+
+              // Attach as a subscriber to to the VideoRoom Plugin
 
               janus.attach({
                 plugin: "janus.plugin.videoroom",
