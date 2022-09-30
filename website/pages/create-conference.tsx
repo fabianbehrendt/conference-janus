@@ -136,6 +136,9 @@ const CreateConference = () => {
                 publishers: 33,
                 secret: hostSecret,
                 pin: pin,
+                record: true,
+                rec_dir: "/home/fabian/janus-recordings/",
+                lock_record: true,
 
               },
               success: result => {
