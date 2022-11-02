@@ -34,7 +34,9 @@ import VideoElement from "../../components/VideoElement";
 import Avatar from "../../components/Avatar";
 
 // URL where Janus server is reachable
-const JANUS_SERVER_URL = "wss://janus.fabianbehrendt.de";
+// const JANUS_SERVER_URL = "wss://janus.fabianbehrendt.de";
+// const JANUS_SERVER_URL = "wss://fabeturn.informatik.uni-hamburg.de";
+const JANUS_SERVER_URL = "ws://134.100.10.85";
 
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
@@ -380,10 +382,10 @@ const Room = () => {
     // Initialize Janus object to handle connections
 
     Janus.init({
-      debug: false,
+      debug: true,
       callback: () => {
         // List and store available media devices
-        
+
         Janus.listDevices((devices: MediaDeviceInfo[]) => {
           setAvailableDevices(devices);
 
@@ -417,7 +419,6 @@ const Room = () => {
             server: JANUS_SERVER_URL,
             success: () => {
               // Attach as a publisher to the VideoRoom Plugin
-              
               janus.attach({
                 plugin: "janus.plugin.videoroom",
                 opaqueId: opaqueId,
@@ -626,7 +627,6 @@ const Room = () => {
               } as JanusJS.PluginOptions);
 
               // Attach as a subscriber to to the VideoRoom Plugin
-
               janus.attach({
                 plugin: "janus.plugin.videoroom",
                 opaqueId: opaqueId,

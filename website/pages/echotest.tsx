@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react'
 
+// @ts-ignore
 import { Janus } from 'janus-gateway';
+import { JanusJS } from '../janus';
 
 import Layout from '../components/Layout'
 
+const body = {
+  audio: true,
+  video: true
+};
+
 const EchoTest = () => {
   const [isJanusInitialized, setIsJanusInitialized] = useState(false);
-  const [localTracks, setLocalTracks] = useState([]);
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteTracks, setRemoteTracks] = useState([]);
-  const [remoteStream, setRemoteStream] = useState(null);
+  const [localTracks, setLocalTracks] = useState<MediaStreamTrack[]>([]);
+  const [localStream, setLocalStream] = useState<MediaStream>();
+  const [remoteTracks, setRemoteTracks] = useState<MediaStreamTrack[]>([]);
+  const [remoteStream, setRemoteStream] = useState<MediaStream>();
 
   useEffect(() => {
     if (localTracks.length == 2) {
@@ -25,7 +32,7 @@ const EchoTest = () => {
 
   useEffect(() => {
     Janus.init({
-      debug: true,
+      debug: false,
       callback: () => {
         setIsJanusInitialized(true);
       }
@@ -36,53 +43,68 @@ const EchoTest = () => {
     if (!isJanusInitialized)
       return
 
-    let plugin = null;
+    let plugin: any;
 
     const janus = new Janus({
-      server: "wss://janus.fabianbehrendt.de",
+      // server: "wss://janus.fabianbehrendt.de",
+      server: "wss://fabeturn.informatik.uni-hamburg.de",
       success: () => {
         janus.attach({
           plugin: "janus.plugin.echotest",
-          success: pluginHandle => {
+          success: (pluginHandle: JanusJS.PluginHandle) => {
             // TODO successfully attached
             // console.log("attached to plugin echotest")
             plugin = pluginHandle;
-            const body = {
-              audio: true,
-              video: true
-            };
             plugin.send({ message: body })
+            // plugin.createOffer({
+            //   success: (jsep: JanusJS.JSEP) => {
+            //     plugin.send({ message: body, jsep: jsep })
+            //   },
+            //   error: (error: any) => {
+            //     // TODO Handle error
+            //   },
+            //   customizeSdp: (jsep: JanusJS.JSEP) => {
+            //     // TODO Modify original sdp if needed
+            //   }
+            // })
             plugin.createOffer({
-              success: jsep => {
+              tracks: [
+                { type: "audio", capture: true },
+                { type: "video", capture: true },
+              ],
+              success: (jsep: JanusJS.JSEP) => {
+                // console.log(`own jsep ${jsep.type}:`, jsep.sdp)
                 plugin.send({ message: body, jsep: jsep })
               },
-              error: error => {
+              error: (error: any) => {
                 // TODO Handle error
               },
-              customizeSdp: jsep => {
+              customizeSdp: (jsep: JanusJS.JSEP) => {
                 // TODO Modify original sdp if needed
               }
             })
           },
-          error: cause => {
+          error: (cause: any) => {
             // TODO error
           },
-          consentDialog: on => {
+          consentDialog: (on: boolean) => {
             // TODO e.g. darken the screen if on === true (getUserMedia incoming)
           },
-          onmessage: (msg, jsep) => {
+          onmessage: (msg: any, jsep: JanusJS.JSEP) => {
             // TODO message / event received
+
             // TODO if jsep not null, WebRTC negotiation
-            if (jsep !== undefined && jsep !== null) {
+            if (jsep != null) {
+              // console.log(`got jsep ${jsep.type}:`, jsep.sdp)
               plugin.handleRemoteJsep({ jsep: jsep })
             }
           },
-          onlocaltrack: (track, added) => {
+          onlocaltrack: (track: MediaStreamTrack, added: boolean) => {
             // TODO local track has been added or removed
             // console.log("local:", track, added)
             setLocalTracks(prev => [...prev, track])
           },
-          onremotetrack: (track, mid, added) => {
+          onremotetrack: (track: MediaStreamTrack, mid: number, added: boolean) => {
             // TODO remote track with specific mid has been added or removed
             // console.log("remote:", track, mid, added)
             setRemoteTracks(prev => {
@@ -92,6 +114,15 @@ const EchoTest = () => {
                 return [...prev, track]
             })
           },
+          webrtcState: (active: boolean) => {
+            console.log("webrtcState:", active)
+          },
+          iceState: (state: string) => {
+            console.log("iceState:", state)
+          },
+          mediaState: (mid: number, type: string, on: boolean) => {
+            console.log("mediaState:", mid, type, on)
+          },
           oncleanup: () => {
             // TODO clean UI
           },
@@ -100,7 +131,7 @@ const EchoTest = () => {
           }
         })
       },
-      error: cause => {
+      error: (cause: any) => {
         // TODO Janus server object couldn't be initialized
         // console.log(cause)
       },
@@ -118,7 +149,7 @@ const EchoTest = () => {
           autoPlay
           style={{ border: "1px solid black" }}
           ref={ref => {
-            if (ref)
+            if (ref && localStream)
               ref.srcObject = localStream;
           }}
         />
@@ -126,7 +157,7 @@ const EchoTest = () => {
           autoPlay
           style={{ border: "1px solid black" }}
           ref={ref => {
-            if (ref)
+            if (ref && remoteStream)
               ref.srcObject = remoteStream;
           }}
         />
