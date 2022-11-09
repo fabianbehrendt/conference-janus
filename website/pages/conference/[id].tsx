@@ -382,7 +382,7 @@ const Room = () => {
     // Initialize Janus object to handle connections
 
     Janus.init({
-      debug: true,
+      debug: false,
       callback: () => {
         // List and store available media devices
 
@@ -643,7 +643,7 @@ const Room = () => {
 
                   if (msg.error) {
                     // TODO handle error
-                  } else if (event === "attached") {
+                  } else if (event === "attached" || event === "updated") {
                     isSubscriberJoining.current = false;
                     setHasSubscriberJoined(true);
                   } else if (event === "event") {
