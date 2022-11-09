@@ -643,7 +643,7 @@ const Room = () => {
 
                   if (msg.error) {
                     // TODO handle error
-                  } else if (event === "attached" || event === "updated") {
+                  } else if (event === "attached") {
                     isSubscriberJoining.current = false;
                     setHasSubscriberJoined(true);
                   } else if (event === "event") {
