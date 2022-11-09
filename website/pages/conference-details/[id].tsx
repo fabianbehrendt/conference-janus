@@ -54,7 +54,8 @@ const ConferenceDetails = () => {
       debug: true,
       callback: () => {
         const janus = new Janus({
-          server: "wss://janus.fabianbehrendt.de",
+          // server: "wss://janus.fabianbehrendt.de",
+          server: "ws://134.100.10.85",
           success: () => {
             janus.attach({
               plugin: "janus.plugin.videoroom",
