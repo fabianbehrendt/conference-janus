@@ -694,7 +694,7 @@ const Room = () => {
                 onremotetrack: (track, mid, added) => {
                   // TODO on description change, maybe update existing mid instead of creating a new one ??? -> look at newPublishers
 
-                  // console.log("remote track", track, mid, added)
+                  console.log("remote track", track, mid, added)
                   // TODO remote track with specific mid has been added or removed
                   if (added) {
                     // console.log("remote track received:", track, mid)
