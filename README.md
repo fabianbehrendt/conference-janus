@@ -32,3 +32,10 @@ In pages/create-conference.tsx kann man oben in der Variable REC_DIR den Ort def
 Mit dem Tool janus-pp-rec kann man diese Dateien wie folgt in Videos, Audios und Daten umwandeln:
 
 ./janus-pp-rec /path/to/source.mjr /path/to/destination.[opus|ogg|mka|wav|webm|mkv|h264|srt]
+
+Janus 1.0.4
+
+JANUS_URL
+- create-conference
+- conference-details
+- conference room (conference-janus/website/pages/conference/[id].tsx)
