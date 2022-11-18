@@ -45,7 +45,14 @@ const ConferenceDetails = () => {
     return router.query.secret;
   }, [router.isReady, router.query.secret]);
 
+  const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
+
   useEffect(() => {
+    if (janusUrl == null) {
+      alert("No janus URL specified")
+      return;
+    }
+    
     if (roomId == null) {
       return;
     }
@@ -55,7 +62,8 @@ const ConferenceDetails = () => {
       callback: () => {
         const janus = new Janus({
           // server: "wss://janus.fabianbehrendt.de",
-          server: "ws://134.100.10.85",
+          // server: "ws://134.100.10.85",
+          server: janusUrl,
           success: () => {
             janus.attach({
               plugin: "janus.plugin.videoroom",
@@ -87,7 +95,7 @@ const ConferenceDetails = () => {
         });
       },
     });
-  }, [roomId]);
+  }, [janusUrl, roomId]);
 
   const meetingUrl = useMemo(() => {
     if (room == null) {

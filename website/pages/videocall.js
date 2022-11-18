@@ -38,14 +38,22 @@ const VideoCall = () => {
     })
   }, []);
 
+  const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
+
   useEffect(() => {
+    if (janusUrl == null) {
+      alert("No janus URL specified")
+      return;
+    }
+    
     if (!isJanusInitialized)
       return
 
     // let plugin = null;
 
     const janus = new Janus({
-      server: "wss://janus.fabianbehrendt.de",
+      // server: "wss://janus.fabianbehrendt.de",
+      server: janusUrl,
       success: () => {
         janus.attach({
           plugin: "janus.plugin.videocall",
@@ -130,7 +138,7 @@ const VideoCall = () => {
         // console.log("destroyed")
       }
     })
-  }, [isJanusInitialized])
+  }, [isJanusInitialized, janusUrl])
 
   return (
     <Layout>

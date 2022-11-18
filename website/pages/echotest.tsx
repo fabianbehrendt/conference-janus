@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 // @ts-ignore
 import { Janus } from 'janus-gateway';
@@ -38,8 +38,15 @@ const EchoTest = () => {
       }
     })
   }, []);
+  
+  const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
 
   useEffect(() => {
+    if (janusUrl == null) {
+      alert("No janus URL specified")
+      return;
+    }
+    
     if (!isJanusInitialized)
       return
 
@@ -47,7 +54,8 @@ const EchoTest = () => {
 
     const janus = new Janus({
       // server: "wss://janus.fabianbehrendt.de",
-      server: "wss://fabeturn.informatik.uni-hamburg.de",
+      // server: "wss://fabeturn.informatik.uni-hamburg.de",
+      server: janusUrl,
       success: () => {
         janus.attach({
           plugin: "janus.plugin.echotest",

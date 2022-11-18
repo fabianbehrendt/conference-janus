@@ -52,12 +52,20 @@ const VideoRoom = () => {
     });
   }, []);
 
+  const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
+
   useEffect(() => {
+    if (janusUrl == null) {
+      alert("No janus URL specified")
+      return;
+    }
+    
     if (!isJanusInitialized)
       return;
 
     const janus = new Janus({
-      server: "wss://janus.fabianbehrendt.de",
+      // server: "wss://janus.fabianbehrendt.de",
+      server: janusUrl,
       success: () => {
         janus.attach({
           plugin: "janus.plugin.videoroom",
@@ -71,7 +79,7 @@ const VideoRoom = () => {
         })
       }
     });
-  }, [getRooms, isJanusInitialized]);
+  }, [getRooms, isJanusInitialized, janusUrl]);
 
   const roomList = useMemo(() => {
     return rooms?.map(room => {

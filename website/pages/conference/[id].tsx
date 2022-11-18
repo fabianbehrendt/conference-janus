@@ -36,7 +36,7 @@ import Avatar from "../../components/Avatar";
 // URL where Janus server is reachable
 // const JANUS_SERVER_URL = "wss://janus.fabianbehrendt.de";
 // const JANUS_SERVER_URL = "wss://fabeturn.informatik.uni-hamburg.de";
-const JANUS_SERVER_URL = "ws://134.100.10.85";
+// const JANUS_SERVER_URL = "ws://134.100.10.85";
 
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
@@ -353,7 +353,14 @@ const Room = () => {
     })
   }, [hasPublisherJoined, hostSecret, isSocketConnected, offerJsep, room, socket]);
 
+  const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
+
   useEffect(() => {
+    if (janusUrl == null) {
+      alert("No janus URL specified")
+      return;
+    }
+    
     if (!isSocketConnected || unsubscribeFrom == null || !router.isReady || typeof router.query.id !== "string")
       return;
 
@@ -416,7 +423,7 @@ const Room = () => {
           // Connect to Janus Backend
 
           const janus = new Janus({
-            server: JANUS_SERVER_URL,
+            server: janusUrl,
             success: () => {
               // Attach as a publisher to the VideoRoom Plugin
               janus.attach({
@@ -726,7 +733,7 @@ const Room = () => {
         });
       }
     })
-  }, [isSocketConnected, router, router.isReady, router.query, socket, unsubscribeFrom]);
+  }, [isSocketConnected, janusUrl, router, router.isReady, router.query, socket, unsubscribeFrom]);
 
   useEffect(() => {
     isChatWindowOpen.current = isChatVisible;

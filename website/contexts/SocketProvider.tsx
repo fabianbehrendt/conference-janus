@@ -17,8 +17,13 @@ const SocketProvider: React.FunctionComponent<ISocketProvider> = props => {
   const [socket, setSocket] = useState<Socket>();
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_WEBSITE_URL == null) {
+      alert("No janus URL specified");
+      return;
+    }
+    
     const newSocket = io(
-      process.env.NODE_ENV === "development" ? "ws://localhost:3000" : URL_WEBSOCKET_SERVER,
+      process.env.NODE_ENV === "development" ? "ws://localhost:3000" : process.env.NEXT_PUBLIC_WEBSITE_URL,
       // path is used to be able to run both, janus api and websocket server, over same (sub)domain
       { path: "/socket/socket.io", }
     );
