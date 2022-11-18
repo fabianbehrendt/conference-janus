@@ -2,10 +2,10 @@
   "name": "backend-janus",
   "version": "1.0.0",
   "description": "backend for the janus conference app",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon --inspect server.js"
+    "dev": "nodemon server.js"
   },
   "author": "Fabian Behrendt",
   "license": "ISC",
