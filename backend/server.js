@@ -5,6 +5,8 @@ const {
 } = require('socket.io');
 const router = express.Router();
 
+const port = process.env.PORT || 3000;
+
 let rooms = {};
 let users = [];
 let host = null;
@@ -108,6 +110,6 @@ io.on('connection', socket => {
 
 app.use("/socket", router);
 
-server.listen(3000, () => {
-  console.log('listening on *:3000');
+server.listen(port, () => {
+  console.log(`listening on *:${port}`);
 });
