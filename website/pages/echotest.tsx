@@ -148,7 +148,7 @@ const EchoTest = () => {
         // console.log("destroyed")
       }
     })
-  }, [isJanusInitialized])
+  }, [isJanusInitialized, janusUrl])
 
   return (
     <Layout>
