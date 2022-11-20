@@ -43,6 +43,11 @@ button:hover {
   background: var(--primary);
 }
 
+button:disabled {
+  background: var(--secondary);
+  cursor: auto;
+}
+
 select {
   background: white;
   padding: 8px;

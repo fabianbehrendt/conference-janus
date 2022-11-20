@@ -64,7 +64,6 @@ const VideoRoom = () => {
       return;
 
     const janus = new Janus({
-      // server: "wss://janus.fabianbehrendt.de",
       server: janusUrl,
       success: () => {
         janus.attach({

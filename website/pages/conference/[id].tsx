@@ -33,11 +33,6 @@ import { useAppHeight } from "../../contexts/AppHeightProvider";
 import VideoElement from "../../components/VideoElement";
 import Avatar from "../../components/Avatar";
 
-// URL where Janus server is reachable
-// const JANUS_SERVER_URL = "wss://janus.fabianbehrendt.de";
-// const JANUS_SERVER_URL = "wss://fabeturn.informatik.uni-hamburg.de";
-// const JANUS_SERVER_URL = "ws://134.100.10.85";
-
 const Room = () => {
   const [newPublishers, setNewPublishers] = useState<Publisher[]>([]);
   const [hasPublisherJoined, setHasPublisherJoined] = useState<boolean>(false);

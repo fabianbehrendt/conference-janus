@@ -5,8 +5,6 @@ interface ISocketProvider {
   children: React.ReactNode;
 }
 
-const URL_WEBSOCKET_SERVER = "wss://app.fabianbehrendt.de";
-
 const SocketContext = React.createContext<undefined | Socket>(undefined);
 
 const useSocket = () => {

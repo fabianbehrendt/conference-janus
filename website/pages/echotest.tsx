@@ -53,8 +53,6 @@ const EchoTest = () => {
     let plugin: any;
 
     const janus = new Janus({
-      // server: "wss://janus.fabianbehrendt.de",
-      // server: "wss://fabeturn.informatik.uni-hamburg.de",
       server: janusUrl,
       success: () => {
         janus.attach({

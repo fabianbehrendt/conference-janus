@@ -52,7 +52,6 @@ const VideoCall = () => {
     // let plugin = null;
 
     const janus = new Janus({
-      // server: "wss://janus.fabianbehrendt.de",
       server: janusUrl,
       success: () => {
         janus.attach({

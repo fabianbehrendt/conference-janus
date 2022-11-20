@@ -8,8 +8,6 @@ const router = express.Router();
 const port = process.env.PORT || 3000;
 
 let rooms = {};
-let users = [];
-let host = null;
 
 const app = express();
 const server = http.createServer(app);
@@ -48,18 +46,6 @@ io.on('connection', socket => {
       rooms[roomId].users = [...rooms[roomId].users, user]
     }
 
-    // if (isHost) {
-    //   host = {
-    //     socketId: socket.id,
-    //     janusId: userId
-    //   };
-    // } else {
-    //   users = [...users, {
-    //     socketId: socket.id,
-    //     janusId: userId
-    //   }];
-    // }
-
     console.log("\n### J O I N ###", rooms)
   })
 
@@ -78,14 +64,6 @@ io.on('connection', socket => {
       delete rooms[roomId];
     }
 
-    // if (host === userId) {
-    //   host = null;
-    // } else {
-    //   users = users.filter(({
-    //     janusId
-    //   }) => janusId !== userId);
-    // }
-
     console.log("\n### L E A V E ###\n", rooms)
   })
 
@@ -97,12 +75,6 @@ io.on('connection', socket => {
     const targetConnectionId = rooms[roomId].users
       .find(user => user.janusId === userId)
       .socketId;
-
-    console.log("target connection id", targetConnectionId);
-
-    // const targetConnectionId = users.filter(({
-    //   janusId
-    // }) => janusId === userId)[0].socketId;
 
     socket.to(targetConnectionId).emit('switch-stream', rooms[roomId].host.janusId, showAlt)
   })

@@ -10,12 +10,18 @@ import Icon from "@mdi/react";
 import { mdiContentCopy } from "@mdi/js";
 import Layout from "../../components/Layout";
 import { useAppHeight } from "../../contexts/AppHeightProvider";
+import { useAuth } from "../../contexts/AuthContextProvider";
+import Login from "../../components/Login";
+import Loader from "../../components/Loader";
 
 const ConferenceDetails = () => {
+  const [isJanusInitialized, setIsJanusInitialized] = useState(false);
   const [room, setRoom] = useState<JanusJS.Room>();
+  const [pluginHandle, setPluginHandle] = useState<JanusJS.PluginHandle>();
 
   const router = useRouter();
   const appHeight = useAppHeight();
+  const auth = useAuth();
 
   const roomId = useMemo(() => {
     if (!router.isReady || typeof router.query.id !== "string")
@@ -48,54 +54,62 @@ const ConferenceDetails = () => {
   const janusUrl = useMemo(() => process.env.NEXT_PUBLIC_JANUS_URL, []);
 
   useEffect(() => {
+    Janus.init({
+      debug: false,
+      callback: () => {
+        setIsJanusInitialized(true);
+      },
+    });
+  }, []);
+
+  useEffect(() => {
     if (janusUrl == null) {
       alert("No janus URL specified")
       return;
     }
-    
+
     if (roomId == null) {
       return;
     }
 
-    Janus.init({
-      debug: true,
-      callback: () => {
-        const janus = new Janus({
-          // server: "wss://janus.fabianbehrendt.de",
-          // server: "ws://134.100.10.85",
-          server: janusUrl,
-          success: () => {
-            janus.attach({
-              plugin: "janus.plugin.videoroom",
-              success: (pluginHandle: JanusJS.PluginHandle) => {
-                pluginHandle.send({
-                  message: {
-                    request: "list",
-                  },
-                  success: (msg: { list: JanusJS.Room[], videoroom: "success" | "event", error_code?: number, error?: string }) => {
-                    const event = msg.videoroom;
+    if (!isJanusInitialized)
+      return;
 
-                    if (event === "success") {
-                      const currentRoom = msg.list.find(room => room.room === roomId);
+    const janus = new Janus({
+      server: janusUrl,
+      success: () => {
+        janus.attach({
+          plugin: "janus.plugin.videoroom",
+          success: (pluginHandle: JanusJS.PluginHandle) => {
+            setPluginHandle(pluginHandle);
 
-                      if (currentRoom == null) {
-                        return;
-                      }
+            pluginHandle.send({
+              message: {
+                request: "list",
+                admin_key: auth.adminKey,
+              },
+              success: (msg: { list: JanusJS.Room[], videoroom: "success" | "event", error_code?: number, error?: string }) => {
+                const event = msg.videoroom;
 
-                      setRoom(currentRoom);
-                    }
+                if (event === "success") {
+                  const currentRoom = msg.list.find(room => room.room === roomId);
+
+                  if (currentRoom == null) {
+                    return;
                   }
-                })
-              },
-              onmessage: (msg, jsep) => {
-                console.log("msg, jsep:", msg, jsep);
-              },
-            } as JanusJS.PluginOptions)
-          }
-        });
-      },
+
+                  setRoom(currentRoom);
+                }
+              }
+            })
+          },
+          onmessage: (msg, jsep) => {
+            console.log("msg, jsep:", msg, jsep);
+          },
+        } as JanusJS.PluginOptions)
+      }
     });
-  }, [janusUrl, roomId]);
+  }, [auth.adminKey, isJanusInitialized, janusUrl, roomId]);
 
   const meetingUrl = useMemo(() => {
     if (room == null) {
@@ -115,132 +129,140 @@ const ConferenceDetails = () => {
 
   return (
     <Layout>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 32,
-          padding: 64,
-          boxSizing: "border-box",
-          height: appHeight,
-        }}
-      >
-        <h1>Konferenzdetails</h1>
-        <h3>Sample Text</h3>
-        {room != null && meetingUrl != null && pageUrl != null && (
+      {pluginHandle == null ? (
+        <Loader />
+      ) : (
+        auth.adminKey == null ? (
+          <Login pluginHandle={pluginHandle} />
+        ) : (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              border: "1px solid black",
-              borderRadius: 8,
-              maxWidth: "640px",
-              width: "100%",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 32,
+              padding: 64,
+              boxSizing: "border-box",
+              height: appHeight,
             }}
           >
-            <h2
-              style={{
-                textAlign: "center",
-                padding: 32,
-                borderBottom: "1px solid black",
-              }}
-            >
-              {room.description}
-            </h2>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: 32,
-                borderBottom: "1px solid black",
-              }}
-            >
-              <p>Teilen Sie den Link der Konferenz</p>
+            <h1>Konferenzdetails</h1>
+            <h3>Sample Text</h3>
+            {room != null && meetingUrl != null && pageUrl != null && (
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  position: "relative",
+                  border: "1px solid black",
+                  borderRadius: 8,
+                  maxWidth: "640px",
+                  width: "100%",
                 }}
               >
-                <input
-                  style={{ height: 40, paddingRight: 40, background: "var(--secondary)", }}
-                  disabled
-                  readOnly
-                  value={`${meetingUrl}?pin=${pin}`}
-                />
-                <div
+                <h2
                   style={{
-                    position: "absolute",
-                    top: "calc(50% - 12px)",
-                    right: 8,
-                    cursor: "pointer",
-                  }}
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(`${meetingUrl}?pin=${pin}`)
+                    textAlign: "center",
+                    padding: 32,
+                    borderBottom: "1px solid black",
                   }}
                 >
-                  <Icon
-                    path={mdiContentCopy}
-                    size="24px"
-                  />
-                </div>
-              </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: 32,
-              }}
-            >
-              <p>Teilen Sie diese Seite mit anderen Moderator:innen</p>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  position: "relative",
-                }}
-              >
-                <input
-                  style={{ height: 40, paddingRight: 40, background: "var(--secondary)", }}
-                  disabled
-                  readOnly
-                  value={pageUrl}
-                />
+                  {room.description}
+                </h2>
                 <div
                   style={{
-                    position: "absolute",
-                    top: "calc(50% - 12px)",
-                    right: 8,
-                    cursor: "pointer",
-                  }}
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(pageUrl)
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    padding: 32,
+                    borderBottom: "1px solid black",
                   }}
                 >
-                  <Icon
-                    path={mdiContentCopy}
-                    size="24px"
-                  />
+                  <p>Teilen Sie den Link der Konferenz</p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      position: "relative",
+                    }}
+                  >
+                    <input
+                      style={{ height: 40, paddingRight: 40, background: "var(--secondary)", }}
+                      disabled
+                      readOnly
+                      value={`${meetingUrl}?pin=${pin}`}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(50% - 12px)",
+                        right: 8,
+                        cursor: "pointer",
+                      }}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(`${meetingUrl}?pin=${pin}`)
+                      }}
+                    >
+                      <Icon
+                        path={mdiContentCopy}
+                        size="24px"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    padding: 32,
+                  }}
+                >
+                  <p>Teilen Sie diese Seite mit anderen Moderator:innen</p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      position: "relative",
+                    }}
+                  >
+                    <input
+                      style={{ height: 40, paddingRight: 40, background: "var(--secondary)", }}
+                      disabled
+                      readOnly
+                      value={pageUrl}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(50% - 12px)",
+                        right: 8,
+                        cursor: "pointer",
+                      }}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(pageUrl)
+                      }}
+                    >
+                      <Icon
+                        path={mdiContentCopy}
+                        size="24px"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      // TODO add secret to URL
+                      await router.push(meetingUrl + window.location.search);
+                    }}
+                  >
+                    Als Moderator:in beitreten
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={async () => {
-                  // TODO add secret to URL
-                  await router.push(meetingUrl + window.location.search);
-                }}
-              >
-                Als Moderator:in beitreten
-              </button>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        )
+      )}
     </Layout>
   );
 }
