@@ -1,8 +1,33 @@
-# README
+# Conference App
 
-# Install ****Janus WebRTC Server on Ubuntu 20.04****
+### I. Table of Contents
+**[1. Install Janus WebRTC Server on Ubuntu 20.04](#1-install-janus-webrtc-server-on-ubuntu-2004)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.1 Install Dependencies From Package Manager](#11-install-dependencies-from-package-manager)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.2 Install libnice](#12-install-libnice)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.3 Install libsrtp v2.2.0](#13-install-libsrtp-v220)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.4 Install usrsctp (for DataChannel support)](#14-install-usrsctp-for-datachannel-support)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.5 Install libwebsockets](#15-install-libwebsockets)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.6 Compile and install Janus](#16-compile-and-install-janus)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.7 Create Systemd File](#17-create-systemd-file)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.8 Set an Admin Key for Janus](#18-set-an-admin-key-for-janus)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[1.9 Create Logrotate File](#19-create-logrotate-file)**<br>
+**[2. Install Conference App](#2-install-conference-app)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[2.1 Configure Conference App](#21-configure-conference-app)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[2.2 Build Conference App](#22-build-conference-app)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[2.3 Start the Application in the Terminal](#23-start-the-application-in-the-terminal)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[2.4 Start as Background Process](#24-start-as-background-process)**<br>
+**[3. Network Configuration with SSL](#3-network-configuration-with-ssl)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[3.1 Janus HTTP Transport Configuration](#31-janus-http-transport-configuration)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[3.2 Janus Websocket Transport Configuration](#32-janus-websocket-transport-configuration)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[3.3 Restart Janus](#33-restart-janus)**<br>
+&nbsp;&nbsp;&nbsp;&nbsp;**[3.4 NGINX Reverse Proxy](#34-nginx-reverse-proxy)**<br>
+**[4. Recordings](#4-recordings)**<br>
+**[5. Using the Application](#5-using-the-application)**<br>
+**[6. Sources](#6-sources)**<br>
 
-## Install Dependencies From Package Manager
+# 1. Install ****Janus WebRTC Server on Ubuntu 20.04****
+
+## 1.1 Install Dependencies From Package Manager
 
 ```bash
 sudo apt install libmicrohttpd-dev libjansson-dev \
@@ -12,7 +37,7 @@ sudo apt install libmicrohttpd-dev libjansson-dev \
 	git python3 python3-pip make cmake ninja-build
 ```
 
-## Install libnice
+## 1.2 Install libnice
 
 To install libnice, you need meson as a dependency. After installing meson, clone the libnice repo and install it:
 
@@ -23,7 +48,7 @@ cd libnice
 meson --prefix=/usr build && ninja -C build && sudo ninja -C build install
 ```
 
-## Install libsrtp v2.2.0
+## 1.3 Install libsrtp v2.2.0
 
 Check if there is already a version of libsrtp installed:
 
@@ -47,7 +72,7 @@ cd libsrtp-2.2.0
 make shared_library && sudo make install
 ```
 
-## Install **usrsctp (for DataChannel support)**
+## 1.4 Install **usrsctp (for DataChannel support)**
 
 ```bash
 git clone https://github.com/sctplab/usrsctp
@@ -57,7 +82,7 @@ cd usrsctp
 make && sudo make install
 ```
 
-## Install **libwebsockets**
+## 1.5 Install **libwebsockets**
 
 ```bash
 git clone https://libwebsockets.org/repo/libwebsockets
@@ -74,7 +99,7 @@ cmake -DLWS_MAX_SMP=1 -DLWS_WITHOUT_EXTENSIONS=0 -DCMAKE_INSTALL_PREFIX:PATH=/us
 make && sudo make install
 ```
 
-## Compile and install Janus
+## 1.6 Compile and install Janus
 
 ```bash
 git clone https://github.com/meetecho/janus-gateway.git
@@ -94,7 +119,7 @@ Start the server either as a background process as explained in the next section
 /opt/janus/bin/janus
 ```
 
-## Create Systemd File
+## 1.7 Create Systemd File
 
 Create the systemd file for janus:
 
@@ -145,7 +170,7 @@ Check status of service:
 sudo service janus status
 ```
 
-## Set an Admin Key for Janus
+## 1.8 Set an Admin Key for Janus
 
 For creating and listing private rooms, you should configure an `admin_key`. Open the configuration file for the Janus videoroom plugin:
 
@@ -157,7 +182,7 @@ Change the `admin_key` configuration inside the `general` configuration block. U
 
 After changing the `admin_key` value, always restart the Janus WebRTC server!
 
-## Create Logrotate File
+## 1.9 Create Logrotate File
 
 Edit the janus configuration file to determine the log location:
 
@@ -202,7 +227,7 @@ The file `/var/log/janus/janus.log` should be created automatically when the Jan
 sudo touch /var/log/janus/janus.log
 ```
 
-# Install Conference App
+# 2. Install Conference App
 
 Install npm via nvm:
 
@@ -230,7 +255,7 @@ npm install
 cd ..
 ```
 
-## Configure Conference App
+## 2.1 Configure Conference App
 
 In `website/.env` edit the following environment variables:
 
@@ -248,14 +273,14 @@ NEXT_PUBLIC_RECORDING_DIR=/path/on/server/for/recordings/
 
 After changing the `.env` file, always rebuild the conference app!
 
-## Build Conference App
+## 2.2 Build Conference App
 
 ```bash
 cd website
 npm run build
 ```
 
-## Start the Application in the Terminal
+## 2.3 Start the Application in the Terminal
 
 Start the websocket server on port 3000:
 
@@ -271,7 +296,7 @@ cd website
 PORT=5000 npm start
 ```
 
-## Start as Background Process
+## 2.4 Start as Background Process
 
 Install the PM2 process manager:
 
@@ -346,7 +371,7 @@ pm2 start app.js --no-vizion
 pm2 start app.js --no-autorestart
 ```
 
-# Network Configuration with SSL
+# 3. Network Configuration with SSL
 
 ```bash
                  _______________________________
@@ -360,7 +385,7 @@ pm2 start app.js --no-autorestart
                 |_______________________________|
 ```
 
-## Janus HTTP Transport Configuration
+## 3.1 Janus HTTP Transport Configuration
 
 Open the HTTP transport configuration file:
 
@@ -372,7 +397,7 @@ Change the `ip` configuration inside the `general` configuration block. Uncommen
 
 Keep the `https` configuration default, i.e. `false`.
 
-## **Janus Websocket Transport Configuration**
+## 3.2 Janus Websocket Transport Configuration
 
 Open the websocket transport configuration file:
 
@@ -384,13 +409,13 @@ Change the `ws_ip` configuration inside the `general` configuration block. Uncom
 
 Keep the `wss` configuration default, i.e. `false`.
 
-## Restart Janus
+## 3.3 Restart Janus
 
 ```bash
 sudo service janus restart
 ```
 
-## NGINX Reverse Proxy
+## 3.4 NGINX Reverse Proxy
 
 If NGINX is not installed yet, install it:
 
@@ -510,7 +535,7 @@ To check if the websocket endpoint is working, open this url in your browser to 
 https://<your.domain.com>
 ```
 
-# Recordings
+# 4. Recordings
 
 The two demo rooms that come with the default setup of the Janus WebRTC server do not provide the feature of recording various media channels of the participants. To enable it, simply create a new room. The recorded files can be found in the directory specified in the `NEXT_PUBLIC_RECORDING_DIR` environment variable.
 
@@ -520,7 +545,7 @@ The Janus WebRTC server provides a tool to process the previously recorded RTP f
 /opt/janus/bin/janus-pp-rec /path/to/source.mjr /path/to/destination.[opus|ogg|mka|wav|webm|mkv|h264|srt]
 ```
 
-# Using the Application
+# 5. Using the Application
 
 To create, delete and show the conference rooms, visit:
 
@@ -538,7 +563,7 @@ The first url should be shared with the participants of the conference, whereas 
 
 The second url can be shared with other moderators, or simply saved for later. With this you can view this page again, so you will be able to join as a moderator.
 
-# Sources
+# 6. Sources
 
 [0] [https://github.com/meetecho/janus-gateway](https://github.com/meetecho/janus-gateway)
 
