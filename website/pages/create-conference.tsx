@@ -230,7 +230,6 @@ const CreateConference = (props: any) => {
                     record: true,
                     rec_dir: process.env.NEXT_PUBLIC_RECORDING_DIR,
                     lock_record: true,
-                    is_private: true,
                     admin_key: auth.adminKey,
 
                   },
