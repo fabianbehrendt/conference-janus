@@ -355,7 +355,7 @@ const Room = () => {
       alert("No janus URL specified")
       return;
     }
-    
+
     if (!isSocketConnected || unsubscribeFrom == null || !router.isReady || typeof router.query.id !== "string")
       return;
 
@@ -1379,7 +1379,7 @@ const Room = () => {
                     const audioTrack: JanusJS.Track = {
                       type: "audio",
                       mid: currentAudioMid,
-                      capture: { audio: { deviceId: { exact: value, }, }, },
+                      capture: { deviceId: { exact: value, }, },
                     };
 
                     publisherHandle.current?.replaceTracks({
@@ -1433,7 +1433,7 @@ const Room = () => {
                     const videoTrack: JanusJS.Track = {
                       type: value === "screen" ? "screen" : "video",
                       mid: currentVideoMid,
-                      capture: value === "screen" ? true : { video: { deviceId: { exact: value, }, }, },
+                      capture: value === "screen" ? true : { deviceId: { exact: value, }, },
                     };
 
                     publisherHandle.current?.replaceTracks({

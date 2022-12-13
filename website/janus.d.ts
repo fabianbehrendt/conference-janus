@@ -146,7 +146,7 @@ declare namespace JanusJS {
   interface Track {
     type: "audio" | "video" | "screen" | "data";
     mid?: string;
-    capture?: boolean | MediaStreamConstraints;
+    capture?: boolean | MediaTrackConstraints;
   }
 
   interface OfferParams {
